@@ -8,6 +8,7 @@ Rozbudowany przepływ n8n, który:
 4. ma **obsługę błędów, alerty krytyczne i retry**.
 
 Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
+Jak uruchomić i przetestować: [`TESTING.md`](TESTING.md) (szybki test logiki + pełny przebieg w n8n).
 
 ---
 
