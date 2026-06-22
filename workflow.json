@@ -1,0 +1,250 @@
+{
+  "name": "Kokpit rozbieżności kursowych (multi-Azure, multi-platforma)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": { "interval": [ { "field": "cronExpression", "expression": "0 6 * * *" } ] }
+      },
+      "id": "node-schedule",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [ -1200, 200 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\nreturn [{ json: {\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  machines: [\n    { machine: 'azure-vm-fra-01', host: '10.0.1.11', user: 'azureuser', path: '/data/tx/today.csv' },\n    { machine: 'azure-vm-fra-02', host: '10.0.1.12', user: 'azureuser', path: '/data/tx/today.csv' },\n    { machine: 'azure-vm-waw-01', host: '10.0.2.11', user: 'azureuser', path: '/data/tx/today.csv' }\n  ],\n  platforms: [\n    { name: 'NBP',     url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json', map: 'nbp' },\n    { name: 'ECB',     url: 'https://api.frankfurter.app/latest?from=EUR',                map: 'frankfurter' },\n    { name: 'BROKER',  url: 'https://broker.example.com/api/fx/latest',                   map: 'broker' }\n  ]\n}}];"
+      },
+      "id": "node-config",
+      "name": "Set Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -1000, 200 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Po jednym itemie na maszynę -> SSH wykona się raz na maszynę.\nreturn $('Set Config').first().json.machines.map(m => ({ json: m }));"
+      },
+      "id": "node-machines",
+      "name": "Machines List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -780, 60 ]
+    },
+    {
+      "parameters": {
+        "command": "=cat {{ $json.path }}"
+      },
+      "id": "node-ssh",
+      "name": "Fetch Files (SSH)",
+      "type": "n8n-nodes-base.ssh",
+      "typeVersion": 1,
+      "position": [ -560, 60 ],
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000,
+      "credentials": { "sshPrivateKey": { "id": "REPLACE_SSH_CRED", "name": "Azure VM SSH" } },
+      "notes": "Alternatywa: HTTP Request GET do Azure Blob (SAS) zamiast SSH."
+    },
+    {
+      "parameters": {
+        "jsCode": "// CSV -> znormalizowane transakcje. Kolumny: txId,timestamp,pair,amount,rate,counterparty\nconst out = [];\nfor (const item of $input.all()) {\n  const machine = item.json.machine || 'unknown';\n  const raw = item.json.stdout || item.json.data || '';\n  const lines = String(raw).trim().split(/\\r?\\n/);\n  const header = (lines.shift() || '').split(',').map(h => h.trim());\n  for (const ln of lines) {\n    if (!ln.trim()) continue;\n    const c = ln.split(',');\n    const r = {}; header.forEach((h, i) => (r[h] = (c[i] || '').trim()));\n    out.push({ json: {\n      machine,\n      txId: r.txId,\n      ts: r.timestamp,\n      pair: r.pair,\n      amount: parseFloat(r.amount),\n      rate: parseFloat(r.rate),\n      counterparty: r.counterparty\n    }});\n  }\n}\nreturn out;"
+      },
+      "id": "node-parse-tx",
+      "name": "Parse & Normalize TX",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -340, 60 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Po jednym itemie na platformę -> HTTP wykona się raz na platformę.\nreturn $('Set Config').first().json.platforms.map(p => ({ json: p }));"
+      },
+      "id": "node-platforms",
+      "name": "Platforms List",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -780, 360 ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.url }}",
+        "options": { "timeout": 15000 }
+      },
+      "id": "node-fetch-rates",
+      "name": "Fetch Rates",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ -560, 360 ],
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Każda platforma -> wspólny format { platform, pair, rate, ts }.\nconst now = $now.toISO();\nconst out = [];\nfor (const item of $input.all()) {\n  const cfg = item.json;\n  const body = item.json; // odpowiedź API jest w json\n  const map = (cfg.map || cfg.body && cfg.body.map);\n  // UWAGA: w realu mapowanie per platforma. Tu przykłady dla NBP/Frankfurter.\n  try {\n    if (cfg.map === 'nbp' || (Array.isArray(body) && body[0] && body[0].rates)) {\n      const tbl = Array.isArray(body) ? body[0] : body;\n      for (const r of tbl.rates) out.push({ json: { platform: 'NBP', pair: r.code + '/PLN', rate: r.mid, ts: tbl.effectiveDate } });\n    } else if (cfg.map === 'frankfurter' || body.rates) {\n      for (const [k, v] of Object.entries(body.rates)) out.push({ json: { platform: cfg.name || 'ECB', pair: 'EUR/' + k, rate: v, ts: body.date || now } });\n    } else {\n      out.push({ json: { platform: cfg.name || 'UNKNOWN', pair: body.pair, rate: body.rate, ts: body.ts || now } });\n    }\n  } catch (e) { /* luka raportowana dalej jako brak kursu */ }\n}\nreturn out;"
+      },
+      "id": "node-norm-rates",
+      "name": "Normalize Rates",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -340, 360 ]
+    },
+    {
+      "parameters": { "mode": "append" },
+      "id": "node-merge",
+      "name": "Sync (Merge)",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3,
+      "position": [ -100, 200 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Uzgodnienie: odchylenie kursu transakcji od każdej platformy (najbliższy czasowo kurs).\nconst txs = $('Parse & Normalize TX').all().map(i => i.json);\nconst rates = $('Normalize Rates').all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst tol = cfg.tolerancePct ?? 0.5;\nconst critX = cfg.criticalMultiplier ?? 4;\nconst platforms = [...new Set(rates.map(r => r.platform))];\nfunction refRate(pair, platform, ts) {\n  const c = rates.filter(r => r.pair === pair && r.platform === platform);\n  if (!c.length) return null;\n  c.sort((a, b) => Math.abs(new Date(a.ts) - new Date(ts)) - Math.abs(new Date(b.ts) - new Date(ts)));\n  return c[0].rate;\n}\nconst out = [];\nfor (const t of txs) {\n  const row = { machine: t.machine, txId: t.txId, pair: t.pair, ts: t.ts, usedRate: t.rate, refs: {}, maxDeviationPct: 0, worstPlatform: null, severity: 'OK' };\n  for (const p of platforms) {\n    const rr = refRate(t.pair, p, t.ts);\n    if (rr == null) { row.refs[p] = null; continue; }\n    const dev = ((t.rate - rr) / rr) * 100;\n    row.refs[p] = { rate: rr, deviationPct: Math.round(dev * 1e4) / 1e4 };\n    if (Math.abs(dev) > Math.abs(row.maxDeviationPct)) { row.maxDeviationPct = Math.round(dev * 1e4) / 1e4; row.worstPlatform = p; }\n  }\n  const ad = Math.abs(row.maxDeviationPct);\n  row.severity = ad > tol * critX ? 'CRITICAL' : ad > tol ? 'WARNING' : 'OK';\n  out.push({ json: row });\n}\nreturn out;"
+      },
+      "id": "node-reconcile",
+      "name": "Reconcile",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 140, 200 ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Wielostronicowy HTML (page-break per sekcja). Pełna wersja w README.md.\nconst rows = $input.all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst ts = $now.toISO();\nconst byMachine = {};\nfor (const r of rows) (byMachine[r.machine] ??= []).push(r);\nconst crit = rows.filter(r => r.severity === 'CRITICAL');\nconst warn = rows.filter(r => r.severity === 'WARNING');\nconst fmt = n => (n > 0 ? '+' : '') + Number(n).toFixed(4) + '%';\nconst css = '<style>body{font-family:system-ui,Arial;color:#0f172a;margin:0}.page{padding:32px;min-height:100vh;box-sizing:border-box}@media print{.page{page-break-after:always}}h1{margin:0 0 4px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #cbd5e1;padding:6px 8px;text-align:left}.crit{color:#b91c1c;font-weight:700}.warn{color:#b45309}.ok{color:#15803d}.kpi{display:inline-block;margin-right:24px;font-size:20px;font-weight:700}</style>';\nconst row = r => '<tr><td>' + r.txId + '</td><td>' + r.pair + '</td><td>' + r.usedRate + '</td><td>' + (r.worstPlatform ?? '—') + '</td><td class=\"' + r.severity.toLowerCase() + '\">' + fmt(r.maxDeviationPct) + '</td><td class=\"' + r.severity.toLowerCase() + '\">' + r.severity + '</td></tr>';\nlet html = css + '<div class=\"page\"><h1>Raport rozbieżności kursowych</h1><div>Wygenerowano: ' + ts + ' · próg ' + cfg.tolerancePct + '%</div><hr/><div class=\"kpi\">Transakcje: ' + rows.length + '</div><div class=\"kpi warn\">WARNING: ' + warn.length + '</div><div class=\"kpi crit\">CRITICAL: ' + crit.length + '</div><p>Maszyny: ' + Object.keys(byMachine).join(', ') + '</p></div>';\nfor (const [m, list] of Object.entries(byMachine)) {\n  html += '<div class=\"page\"><h1>Maszyna: ' + m + '</h1><table><thead><tr><th>txId</th><th>Para</th><th>Kurs użyty</th><th>Najgorsza platforma</th><th>Maks. odchylenie</th><th>Status</th></tr></thead><tbody>' + list.map(row).join('') + '</tbody></table></div>';\n}\nhtml += '<div class=\"page\"><h1>Załącznik — przekroczenia CRITICAL</h1><table><thead><tr><th>Maszyna</th><th>txId</th><th>Para</th><th>Platforma</th><th>Odchylenie</th></tr></thead><tbody>' + crit.map(r => '<tr><td>' + r.machine + '</td><td>' + r.txId + '</td><td>' + r.pair + '</td><td>' + r.worstPlatform + '</td><td class=\"crit\">' + fmt(r.maxDeviationPct) + '</td></tr>').join('') + '</tbody></table></div>';\nreturn [{ json: { generatedAt: ts, critical: crit.length, warning: warn.length, fileName: 'report-' + ts.slice(0,10) + '.pdf' }, html }];"
+      },
+      "id": "node-report",
+      "name": "Build HTML Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ 380, 80 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $('Set Config').first().json.gotenbergUrl }}/forms/chromium/convert/html",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            { "parameterType": "formBinaryData", "name": "files", "inputDataFieldName": "index.html" }
+          ]
+        },
+        "options": { "response": { "response": { "responseFormat": "file" } } }
+      },
+      "id": "node-pdf",
+      "name": "HTML → PDF (Gotenberg)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 600, 80 ],
+      "notes": "Pole 'html' z poprzedniego węzła zapisz jako plik binarny 'index.html' (np. węzłem Code/Move Binary Data) zanim wyślesz."
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "={{ $('Set Config').first().json.blobBase }}/{{ $('Build HTML Report').first().json.fileName }}",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [ { "name": "x-ms-blob-type", "value": "BlockBlob" } ] },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data"
+      },
+      "id": "node-blob",
+      "name": "Upload Report to Blob",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 820, 80 ],
+      "retryOnFail": true,
+      "maxTries": 3
+    },
+    {
+      "parameters": {
+        "fromEmail": "raporty@example.com",
+        "toEmail": "={{ $('Set Config').first().json.recipients }}",
+        "subject": "=Raport rozbieżności kursowych — {{ $('Build HTML Report').first().json.generatedAt.slice(0,10) }} (CRITICAL: {{ $('Build HTML Report').first().json.critical }})",
+        "emailFormat": "text",
+        "text": "=W załączniku raport. CRITICAL: {{ $('Build HTML Report').first().json.critical }}, WARNING: {{ $('Build HTML Report').first().json.warning }}.",
+        "options": { "attachments": "data" }
+      },
+      "id": "node-email",
+      "name": "Email Report",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 2.1,
+      "position": [ 1040, 80 ],
+      "credentials": { "smtp": { "id": "REPLACE_SMTP_CRED", "name": "SMTP" } }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "strict" },
+          "combinator": "and",
+          "conditions": [
+            { "leftValue": "={{ $json.severity }}", "rightValue": "CRITICAL", "operator": { "type": "string", "operation": "equals" } }
+          ]
+        }
+      },
+      "id": "node-filter-crit",
+      "name": "Filter CRITICAL",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2,
+      "position": [ 380, 360 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://outlook.office.com/webhook/REPLACE_TEAMS_WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '🚨 CRITICAL rozbieżność: ' + $json.txId + ' ' + $json.pair + ' (' + $json.worstPlatform + ') odchylenie ' + $json.maxDeviationPct + '% na ' + $json.machine }) }}"
+      },
+      "id": "node-teams",
+      "name": "Alert Teams",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 600, 360 ]
+    },
+    {
+      "parameters": {},
+      "id": "node-error-trigger",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [ 380, 600 ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://outlook.office.com/webhook/REPLACE_TEAMS_WEBHOOK",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ text: '❌ Workflow padł w węźle: ' + ($json.execution?.lastNodeExecuted ?? '?') + ' — ' + ($json.execution?.error?.message ?? 'błąd') }) }}"
+      },
+      "id": "node-notify-fail",
+      "name": "Notify Failure",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ 600, 600 ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": { "main": [ [ { "node": "Set Config", "type": "main", "index": 0 } ] ] },
+    "Set Config": { "main": [ [ { "node": "Machines List", "type": "main", "index": 0 }, { "node": "Platforms List", "type": "main", "index": 0 } ] ] },
+    "Machines List": { "main": [ [ { "node": "Fetch Files (SSH)", "type": "main", "index": 0 } ] ] },
+    "Fetch Files (SSH)": { "main": [ [ { "node": "Parse & Normalize TX", "type": "main", "index": 0 } ] ] },
+    "Parse & Normalize TX": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 0 } ] ] },
+    "Platforms List": { "main": [ [ { "node": "Fetch Rates", "type": "main", "index": 0 } ] ] },
+    "Fetch Rates": { "main": [ [ { "node": "Normalize Rates", "type": "main", "index": 0 } ] ] },
+    "Normalize Rates": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 1 } ] ] },
+    "Sync (Merge)": { "main": [ [ { "node": "Reconcile", "type": "main", "index": 0 } ] ] },
+    "Reconcile": { "main": [ [ { "node": "Build HTML Report", "type": "main", "index": 0 }, { "node": "Filter CRITICAL", "type": "main", "index": 0 } ] ] },
+    "Build HTML Report": { "main": [ [ { "node": "HTML → PDF (Gotenberg)", "type": "main", "index": 0 } ] ] },
+    "HTML → PDF (Gotenberg)": { "main": [ [ { "node": "Upload Report to Blob", "type": "main", "index": 0 } ] ] },
+    "Upload Report to Blob": { "main": [ [ { "node": "Email Report", "type": "main", "index": 0 } ] ] },
+    "Filter CRITICAL": { "main": [ [ { "node": "Alert Teams", "type": "main", "index": 0 } ] ] },
+    "Error Trigger": { "main": [ [ { "node": "Notify Failure", "type": "main", "index": 0 } ] ] }
+  },
+  "settings": { "executionOrder": "v1" },
+  "active": false,
+  "pinData": {}
+}
