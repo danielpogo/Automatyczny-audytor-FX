@@ -25,6 +25,19 @@ Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
 
 ---
 
+## Dane przykładowe
+
+[`samples/transactions-sample.csv`](samples/transactions-sample.csv) — 10 transakcji w schemacie
+`txId,timestamp,pair,amount,rate,counterparty` (pary `X/PLN`). Kursy dobrano tak, by raport
+pokazał wszystkie statusy: większość **OK**, kilka **WARNING** (~0,6%) i kilka **CRITICAL**
+(np. `TX-1005` USD/PLN i `TX-1007` EUR/PLN — odchylenie > 2%).
+
+Użycie do testu: wgraj plik na maszyny pod ścieżkę z `machines[].path` (tryb `ssh`) lub do
+kontenera spod `machines[].blob` (tryb `blob`). Połowa kursowa (NBP + Frankfurter) działa
+od razu, bez poświadczeń.
+
+---
+
 ## Architektura — fazy
 
 ```
