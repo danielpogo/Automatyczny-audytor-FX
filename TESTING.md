@@ -33,22 +33,7 @@ To dowód, że pobieranie kursów, kursy krzyżowe do PLN, uzgodnienie i raport 
 
 ### 1. Postaw n8n i Gotenberg
 
-```yaml
-# docker-compose.yml
-services:
-  n8n:
-    image: n8nio/n8n:latest
-    ports: ["5678:5678"]
-    environment:
-      - N8N_SECURE_COOKIE=false
-    volumes:
-      - n8n_data:/home/node/.n8n
-  gotenberg:
-    image: gotenberg/gotenberg:8
-    ports: ["3000:3000"]
-volumes:
-  n8n_data:
-```
+W repo jest gotowy [`docker-compose.yml`](docker-compose.yml) (n8n + Gotenberg):
 
 ```bash
 docker compose up -d

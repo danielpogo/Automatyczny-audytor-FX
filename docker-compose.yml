@@ -1,0 +1,33 @@
+# Środowisko testowe dla przepływu (Wariant B w TESTING.md).
+# Start:  docker compose up -d
+# n8n:    http://localhost:5678   (załóż konto przy pierwszym wejściu)
+# Stop:   docker compose down      (dane n8n zostają w wolumenie n8n_data)
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    restart: unless-stopped
+    ports:
+      - "5678:5678"
+    environment:
+      - GENERIC_TIMEZONE=Europe/Warsaw
+      - TZ=Europe/Warsaw
+      # Wyłączone secure cookie, bo lokalnie po http (nie używaj tak w produkcji):
+      - N8N_SECURE_COOKIE=false
+      # Gotenberg jest osiągalny pod nazwą usługi w sieci compose:
+      - GOTENBERG_URL=http://gotenberg:3000
+    volumes:
+      - n8n_data:/home/node/.n8n
+    depends_on:
+      - gotenberg
+
+  gotenberg:
+    image: gotenberg/gotenberg:8
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    command:
+      - "gotenberg"
+      - "--chromium-disable-javascript=false"
+
+volumes:
+  n8n_data:
