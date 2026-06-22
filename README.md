@@ -15,10 +15,11 @@ Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
 
 | Obszar | Założenie domyślne | Alternatywa |
 |--------|--------------------|-------------|
-| Źródło plików | VM-ki Azure z plikami CSV, dostęp przez **SSH** (klucz) | **Azure Blob** (SAS/Managed Identity) — węzeł HTTP Request do REST API Storage |
+| Źródło plików | przełącznik `fileSource` w „Set Config”: **`ssh`** (VM Azure) lub **`blob`** (Azure Blob, SAS per maszyna) | obie ścieżki są w workflow — wybór bez zmian struktury |
 | Format transakcji | CSV: `txId,timestamp,pair,amount,rate,counterparty` | JSON / Parquet (zmiana w „Parse & Normalize”) |
-| Platformy kursowe | NBP (tab. A), ECB, broker REST, dostawca premium | dowolne REST/SOAP — mapowanie w „Platforms List” |
-| Silnik PDF | **Gotenberg** (`/forms/chromium/convert/html`) | API typu PDFShift / węzeł społecznościowy / Puppeteer |
+| Platformy kursowe | **NBP (tab. A)** + **ECB/Frankfurter** — obie publiczne, działają od razu | dowolne REST/SOAP — dopisz do `platforms` w „Set Config” |
+| Pary walutowe | `X/PLN` dla `trackCurrencies` (EUR/USD/GBP/CHF), z **kursami krzyżowymi** | dodaj waluty w `trackCurrencies` |
+| Silnik PDF | **Gotenberg** (`/forms/chromium/convert/html`); HTML pakowany do binarnego `index.html` osobnym węzłem | API typu PDFShift / węzeł społecznościowy / Puppeteer |
 | Wyzwalacz | **Schedule** (codziennie 06:00) | Webhook / ręcznie |
 | Próg rozbieżności | `tolerancePct = 0.5%`, CRITICAL > `4×` progu | konfigurowalne w „Set Config” |
 
@@ -39,14 +40,15 @@ Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
 - **Set Config** (Code) — jedno źródło prawdy: lista maszyn, lista platform, progi, adresy Gotenberg/Blob, odbiorcy. Reszta węzłów czyta z `$('Set Config')`.
 
 ### Faza 2 — Pobranie plików z wielu maszyn Azure (równolegle, per item)
-- **Machines List** (Code) — zwraca po jednym itemie na maszynę: `{host,user,path,machine}`.
-- **Fetch Files (SSH)** — wykonuje się **raz na maszynę** (item), pobiera plik (`cat`/`sftp`). Dla Blob: zamień na HTTP Request `GET https://{account}.blob.core.windows.net/{container}/{blob}?{SAS}`.
-- **Parse & Normalize TX** (Code) — CSV→JSON, jednolity schemat + znacznik `machine`.
+- **Machines List** (Code) — zwraca po jednym itemie na maszynę: `{machine,host,user,path,blob}`.
+- **Source = SSH?** (IF) — przełącza ingest wg `fileSource`: `true` → SSH, `false` → Azure Blob.
+- **Fetch Files (SSH)** — `cat`/`sftp` na VM (raz na maszynę). **Fetch Files (Azure Blob)** — `GET` po SAS z `machines[].blob`. Obie ścieżki schodzą się w „Parse”.
+- **Parse & Normalize TX** (Code) — CSV→JSON; obsługuje wyjście SSH (`stdout`) i Blob (`data`/`body`); jednolity schemat + znacznik `machine`.
 
 ### Faza 3 — Kursy z wielu platform (równolegle)
-- **Platforms List** (Code) — po jednym itemie na platformę: `{name,url,mapping}`.
+- **Platforms List** (Code) — po jednym itemie na platformę: `{name,url}`.
 - **Fetch Rates** (HTTP Request) — URL z `={{ $json.url }}` (per platforma).
-- **Normalize Rates** (Code) — każda odpowiedź → wspólny format `{platform,pair,rate,ts}`.
+- **Normalize Rates** (Code) — wykrywa format po kształcie odpowiedzi (NBP / Frankfurter) i liczy **kursy krzyżowe do PLN**, więc NBP i ECB pokrywają te same pary `X/PLN`. Wspólny format `{platform,pair,rate,ts}`.
 
 ### Faza 4 — Uzgodnienie (rdzeń logiki)
 - **Sync (Merge, append)** — bariera: gwarantuje, że obie gałęzie skończyły.
@@ -58,7 +60,8 @@ Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
   2. **Strona per maszyna** — tabela transakcji z odchyleniami.
   3. **Macierz platforma×para** — średnie/maks. odchylenia.
   4. **Załącznik CRITICAL** — pełna lista przekroczeń progu.
-- **HTML→PDF (Gotenberg)** — POST multipart, zwraca PDF (binary).
+- **HTML → binary (index.html)** (Code) — pakuje pole `html` w plik binarny `index.html` (`this.helpers.prepareBinaryData`), gotowy dla Gotenberga.
+- **HTML→PDF (Gotenberg)** — POST multipart (`files`=`index.html`), zwraca PDF w polu binarnym `data`.
 
 ### Faza 6 — Dystrybucja i alerty
 - **Upload Blob** — archiwizacja PDF (`PUT` z nagłówkiem `x-ms-blob-type: BlockBlob`).
