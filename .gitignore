@@ -1,0 +1,10 @@
+# Lokalne / tymczasowe
+*.log
+.DS_Store
+.env
+.venv/
+node_modules/
+
+# Eksporty wykonań n8n (mogą zawierać dane wrażliwe)
+executions/
+*.local.json
