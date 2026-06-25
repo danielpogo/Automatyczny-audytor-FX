@@ -23,7 +23,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Zwraca po jednym item na maszynę — HTTP wykona się raz na maszynę.\nreturn $('Set Config').first().json.machines.map(m => ({ json: m }));"
+        "jsCode": "// JSON.parse/stringify wymusza plain objects — unikamy n8n Proxy, który wewnętrznie ma klucz 'json'.\nconst machines = JSON.parse(JSON.stringify($('Set Config').first().json.machines));\nreturn machines.map(m => ({ json: { name: m.name, blob: m.blob } }));"
       },
       "id": "node-machines",
       "name": "Machines List",
@@ -56,7 +56,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Parsuje CSV z każdej maszyny → wspólny schemat { machine, txId, ts, pair, amount, rate, counterparty }.\n// Nazwa maszyny pochodzi z Machines List (ten sam index co odpowiedź HTTP).\nconst machines = $('Machines List').all();\nconst rows = [];\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const csv = item.json.data || '';\n  const machineName = machines[i] ? machines[i].json.name : 'machine-' + (i + 1);\n  if (!csv.trim()) continue;\n  const lines = csv.trim().split('\\n');\n  for (const line of lines.slice(1)) {\n    const parts = line.split(',');\n    if (parts.length < 6 || !parts[0].trim()) continue;\n    const [txId, ts, pair, amount, rate, counterparty] = parts;\n    rows.push({ json: {\n      machine: machineName,\n      txId: txId.trim(),\n      ts: ts.trim(),\n      pair: pair.trim(),\n      amount: Number(amount.trim()),\n      rate: Number(rate.trim()),\n      counterparty: (counterparty || '').trim()\n    }});\n  }\n}\nreturn rows;"
+        "jsCode": "// JSON.parse/stringify na danych z innych węzłów → plain objects, brak Proxy.\nconst machineNames = JSON.parse(JSON.stringify($('Machines List').all().map(i => i.json.name)));\nconst inputItems = $input.all();\nconst rows = [];\nfor (let i = 0; i < inputItems.length; i++) {\n  const csv = String(inputItems[i].json.data || '');\n  const machineName = machineNames[i] || ('machine-' + (i + 1));\n  if (!csv.trim()) continue;\n  const lines = csv.trim().split('\\n');\n  for (const line of lines.slice(1)) {\n    const parts = line.split(',');\n    if (parts.length < 6 || !parts[0].trim()) continue;\n    const [txId, ts, pair, amount, rate, counterparty] = parts;\n    rows.push({ json: {\n      machine: String(machineName),\n      txId: txId.trim(),\n      ts: ts.trim(),\n      pair: pair.trim(),\n      amount: Number(amount.trim()),\n      rate: Number(rate.trim()),\n      counterparty: (counterparty || '').trim()\n    }});\n  }\n}\nreturn rows;"
       },
       "id": "node-parse-tx",
       "name": "Parse & Normalize TX",
@@ -66,7 +66,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Po jednym itemie na platformę -> HTTP wykona się raz na platformę.\nreturn $('Set Config').first().json.platforms.map(p => ({ json: p }));"
+        "jsCode": "const platforms = JSON.parse(JSON.stringify($('Set Config').first().json.platforms));\nreturn platforms.map(p => ({ json: { name: p.name, url: p.url } }));"
       },
       "id": "node-platforms",
       "name": "Platforms List",
