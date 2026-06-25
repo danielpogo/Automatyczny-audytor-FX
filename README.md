@@ -10,6 +10,9 @@ Rozbudowany przepływ n8n, który:
 Plik do importu: [`workflow.json`](workflow.json) (n8n → *Import from File*).
 Jak uruchomić i przetestować: [`TESTING.md`](TESTING.md) (szybki test logiki + pełny przebieg w n8n).
 
+> **▶ Interaktywny symulator** — obejrzyj animowany diagram i wyniki uzgodnienia bez instalowania n8n:
+> **https://claude.ai/code/artifact/2553296f-ef11-43f8-8c2e-51553e6f3dfa**
+
 ---
 
 ## Założenia (do dostosowania)
