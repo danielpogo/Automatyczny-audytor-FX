@@ -13,7 +13,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\n// fileSource: 'ssh' (VM-ki) albo 'blob' (Azure Blob). trackCurrencies: pary X/PLN do audytu.\nreturn [{ json: {\n  fileSource: 'blob',\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  machines: [\n    { machine: 'azure-vm-fra-01', host: '10.0.1.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-01/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-fra-02', host: '10.0.1.12', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-02/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-waw-01', host: '10.0.2.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-waw-01/today.csv?REPLACE_SAS' }\n  ],\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
+        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\n// fileSource: 'ssh' (VM-ki) albo 'blob' (Azure Blob). trackCurrencies: pary X/PLN do audytu.\nreturn [{ json: {\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
       },
       "id": "node-config",
       "name": "Set Config",
@@ -23,71 +23,13 @@
     },
     {
       "parameters": {
-        "jsCode": "// Po jednym itemie na maszynę -> ingest wykona się raz na maszynę.\nreturn $('Set Config').first().json.machines.map(m => ({ json: m }));"
+        "jsCode": "// Symulacja 3 plików CSV z jednej maszyny — różne pary walutowe i różne odchylenia.\n// sim-file-A: transakcje bliskie rynku (OK)\n// sim-file-B: EUR/PLN z ~3% odchyleniem (CRITICAL) + GBP OK\n// sim-file-C: CHF z ~0.8% odchyleniem (WARNING)\nreturn [\n  { json: { machine: 'sim-file-A', txId: 'TX001', ts: '2026-06-25T08:01:00Z', pair: 'EUR/PLN', amount: 50000, rate: 4.2510, counterparty: 'BANK-A' } },\n  { json: { machine: 'sim-file-A', txId: 'TX002', ts: '2026-06-25T08:15:00Z', pair: 'USD/PLN', amount: 30000, rate: 3.9320, counterparty: 'BANK-B' } },\n  { json: { machine: 'sim-file-B', txId: 'TX003', ts: '2026-06-25T09:00:00Z', pair: 'EUR/PLN', amount: 75000, rate: 4.3820, counterparty: 'BANK-C' } },\n  { json: { machine: 'sim-file-B', txId: 'TX004', ts: '2026-06-25T09:30:00Z', pair: 'GBP/PLN', amount: 20000, rate: 5.0450, counterparty: 'BANK-A' } },\n  { json: { machine: 'sim-file-C', txId: 'TX005', ts: '2026-06-25T10:00:00Z', pair: 'CHF/PLN', amount: 10000, rate: 4.4600, counterparty: 'BANK-D' } }\n];"
       },
-      "id": "node-machines",
-      "name": "Machines List",
+      "id": "node-simulate",
+      "name": "Simulate TX Data",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [ -920, 60 ]
-    },
-    {
-      "parameters": {
-        "conditions": {
-          "options": { "caseSensitive": true, "typeValidation": "strict" },
-          "combinator": "and",
-          "conditions": [
-            { "leftValue": "={{ $('Set Config').first().json.fileSource }}", "rightValue": "ssh", "operator": { "type": "string", "operation": "equals" } }
-          ]
-        }
-      },
-      "id": "node-route-source",
-      "name": "Source = SSH?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2,
-      "position": [ -720, 60 ],
-      "notes": "true -> SSH (VM), false -> Azure Blob. Sterowane Set Config.fileSource."
-    },
-    {
-      "parameters": {
-        "command": "=cat {{ $json.path }}"
-      },
-      "id": "node-ssh",
-      "name": "Fetch Files (SSH)",
-      "type": "n8n-nodes-base.ssh",
-      "typeVersion": 1,
-      "position": [ -500, -40 ],
-      "continueOnFail": true,
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000,
-      "credentials": { "sshPrivateKey": { "id": "REPLACE_SSH_CRED", "name": "Azure VM SSH" } }
-    },
-    {
-      "parameters": {
-        "url": "={{ $json.blob }}",
-        "options": { "timeout": 15000, "response": { "response": { "responseFormat": "text" } } }
-      },
-      "id": "node-blob-fetch",
-      "name": "Fetch Files (Azure Blob)",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [ -500, 160 ],
-      "continueOnFail": true,
-      "retryOnFail": true,
-      "maxTries": 3,
-      "waitBetweenTries": 5000,
-      "notes": "URL z SAS per maszyna (Set Config.machines[].blob). Alternatywa dla SSH."
-    },
-    {
-      "parameters": {
-        "jsCode": "// CSV -> znormalizowane transakcje. Obsługuje wyjście SSH (stdout) i Blob (data/body).\n// Kolumny: txId,timestamp,pair,amount,rate,counterparty. Zachowuje 'machine' z wejścia.\nconst out = [];\nfor (const item of $input.all()) {\n  const j = item.json;\n  const machine = j.machine || j.body && j.body.machine || 'unknown';\n  const raw = j.stdout ?? j.data ?? j.body ?? '';\n  const lines = String(raw).trim().split(/\\r?\\n/);\n  if (!lines.length || !lines[0]) continue;\n  const header = lines.shift().split(',').map(h => h.trim());\n  for (const ln of lines) {\n    if (!ln.trim()) continue;\n    const c = ln.split(',');\n    const r = {}; header.forEach((h, i) => (r[h] = (c[i] || '').trim()));\n    out.push({ json: {\n      machine,\n      txId: r.txId,\n      ts: r.timestamp,\n      pair: (r.pair || '').toUpperCase(),\n      amount: parseFloat(r.amount),\n      rate: parseFloat(r.rate),\n      counterparty: r.counterparty\n    }});\n  }\n}\nreturn out;"
-      },
-      "id": "node-parse-tx",
-      "name": "Parse & Normalize TX",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [ -280, 60 ]
     },
     {
       "parameters": {
@@ -134,7 +76,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Uzgodnienie: odchylenie kursu transakcji od każdej platformy (najbliższy czasowo kurs).\nconst txs = $('Parse & Normalize TX').all().map(i => i.json);\nconst rates = $('Normalize Rates').all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst tol = cfg.tolerancePct ?? 0.5;\nconst critX = cfg.criticalMultiplier ?? 4;\nconst platforms = [...new Set(rates.map(r => r.platform))];\nfunction refRate(pair, platform, ts) {\n  const c = rates.filter(r => r.pair === pair && r.platform === platform);\n  if (!c.length) return null;\n  c.sort((a, b) => Math.abs(new Date(a.ts) - new Date(ts)) - Math.abs(new Date(b.ts) - new Date(ts)));\n  return c[0].rate;\n}\nconst out = [];\nfor (const t of txs) {\n  const row = { machine: t.machine, txId: t.txId, pair: t.pair, ts: t.ts, usedRate: t.rate, refs: {}, maxDeviationPct: 0, worstPlatform: null, severity: 'OK' };\n  for (const p of platforms) {\n    const rr = refRate(t.pair, p, t.ts);\n    if (rr == null) { row.refs[p] = null; continue; }\n    const dev = ((t.rate - rr) / rr) * 100;\n    row.refs[p] = { rate: Math.round(rr * 1e6) / 1e6, deviationPct: Math.round(dev * 1e4) / 1e4 };\n    if (Math.abs(dev) > Math.abs(row.maxDeviationPct)) { row.maxDeviationPct = Math.round(dev * 1e4) / 1e4; row.worstPlatform = p; }\n  }\n  const ad = Math.abs(row.maxDeviationPct);\n  row.severity = ad > tol * critX ? 'CRITICAL' : ad > tol ? 'WARNING' : 'OK';\n  out.push({ json: row });\n}\nreturn out;"
+        "jsCode": "// Uzgodnienie: odchylenie kursu transakcji od każdej platformy (najbliższy czasowo kurs).\nconst txs = $('Simulate TX Data').all().map(i => i.json);\nconst rates = $('Normalize Rates').all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst tol = cfg.tolerancePct ?? 0.5;\nconst critX = cfg.criticalMultiplier ?? 4;\nconst platforms = [...new Set(rates.map(r => r.platform))];\nfunction refRate(pair, platform, ts) {\n  const c = rates.filter(r => r.pair === pair && r.platform === platform);\n  if (!c.length) return null;\n  c.sort((a, b) => Math.abs(new Date(a.ts) - new Date(ts)) - Math.abs(new Date(b.ts) - new Date(ts)));\n  return c[0].rate;\n}\nconst out = [];\nfor (const t of txs) {\n  const row = { machine: t.machine, txId: t.txId, pair: t.pair, ts: t.ts, usedRate: t.rate, refs: {}, maxDeviationPct: 0, worstPlatform: null, severity: 'OK' };\n  for (const p of platforms) {\n    const rr = refRate(t.pair, p, t.ts);\n    if (rr == null) { row.refs[p] = null; continue; }\n    const dev = ((t.rate - rr) / rr) * 100;\n    row.refs[p] = { rate: Math.round(rr * 1e6) / 1e6, deviationPct: Math.round(dev * 1e4) / 1e4 };\n    if (Math.abs(dev) > Math.abs(row.maxDeviationPct)) { row.maxDeviationPct = Math.round(dev * 1e4) / 1e4; row.worstPlatform = p; }\n  }\n  const ad = Math.abs(row.maxDeviationPct);\n  row.severity = ad > tol * critX ? 'CRITICAL' : ad > tol ? 'WARNING' : 'OK';\n  out.push({ json: row });\n}\nreturn out;"
       },
       "id": "node-reconcile",
       "name": "Reconcile",
@@ -270,12 +212,8 @@
   ],
   "connections": {
     "Schedule Trigger": { "main": [ [ { "node": "Set Config", "type": "main", "index": 0 } ] ] },
-    "Set Config": { "main": [ [ { "node": "Machines List", "type": "main", "index": 0 }, { "node": "Platforms List", "type": "main", "index": 0 } ] ] },
-    "Machines List": { "main": [ [ { "node": "Source = SSH?", "type": "main", "index": 0 } ] ] },
-    "Source = SSH?": { "main": [ [ { "node": "Fetch Files (SSH)", "type": "main", "index": 0 } ], [ { "node": "Fetch Files (Azure Blob)", "type": "main", "index": 0 } ] ] },
-    "Fetch Files (SSH)": { "main": [ [ { "node": "Parse & Normalize TX", "type": "main", "index": 0 } ] ] },
-    "Fetch Files (Azure Blob)": { "main": [ [ { "node": "Parse & Normalize TX", "type": "main", "index": 0 } ] ] },
-    "Parse & Normalize TX": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 0 } ] ] },
+    "Set Config": { "main": [ [ { "node": "Simulate TX Data", "type": "main", "index": 0 }, { "node": "Platforms List", "type": "main", "index": 0 } ] ] },
+    "Simulate TX Data": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 0 } ] ] },
     "Platforms List": { "main": [ [ { "node": "Fetch Rates", "type": "main", "index": 0 } ] ] },
     "Fetch Rates": { "main": [ [ { "node": "Normalize Rates", "type": "main", "index": 0 } ] ] },
     "Normalize Rates": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 1 } ] ] },
@@ -290,11 +228,5 @@
   },
   "settings": { "executionOrder": "v1" },
   "active": false,
-  "pinData": {
-    "Fetch Files (Azure Blob)": [
-      { "json": { "machine": "azure-vm-fra-01", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX001,2026-06-25T08:01:00Z,EUR/PLN,50000,4.2510,BANK-A\nTX002,2026-06-25T08:15:00Z,USD/PLN,30000,3.9320,BANK-B" } },
-      { "json": { "machine": "azure-vm-fra-02", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX003,2026-06-25T09:00:00Z,EUR/PLN,75000,4.3820,BANK-C\nTX004,2026-06-25T09:30:00Z,GBP/PLN,20000,5.0450,BANK-A" } },
-      { "json": { "machine": "azure-vm-waw-01", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX005,2026-06-25T10:00:00Z,CHF/PLN,10000,4.4600,BANK-D" } }
-    ]
-  }
+  "pinData": {}
 }
