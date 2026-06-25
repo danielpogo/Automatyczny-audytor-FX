@@ -267,6 +267,84 @@ tr:hover td { background: var(--s2); }
 .ld-email   { background: #071a0e; border-color: var(--ok); }
 .ld-error   { background: #1a0006; border-color: var(--crit); }
 
+/* ── Guide ── */
+.guide {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 5px; overflow: hidden;
+}
+.guide-top {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  background: var(--s2);
+  font-size: 11px; font-weight: 600; letter-spacing: 0.07em;
+  text-transform: uppercase; color: var(--muted);
+}
+.guide-body {
+  padding: 18px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px 32px;
+}
+@media (max-width: 760px) { .guide-body { grid-template-columns: 1fr; } }
+.guide-block { display: flex; flex-direction: column; gap: 8px; }
+.guide-block-title {
+  font-size: 10px; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  font-family: var(--mono);
+  padding-bottom: 6px; border-bottom: 1px solid var(--border);
+}
+.guide-row {
+  display: grid; grid-template-columns: 110px 1fr;
+  gap: 6px; align-items: baseline; font-size: 12px;
+}
+.guide-key {
+  font-family: var(--mono); color: var(--accent);
+  font-size: 11px; white-space: nowrap;
+}
+.guide-val { color: var(--text); line-height: 1.45; }
+.guide-val em { font-style: normal; color: var(--muted); }
+.threshold-row {
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12px; padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+}
+.threshold-row:last-child { border-bottom: none; }
+.threshold-pill {
+  font-size: 10px; font-weight: 700; font-family: var(--mono);
+  letter-spacing: 0.05em; padding: 2px 8px; border-radius: 2px;
+  flex-shrink: 0; width: 72px; text-align: center;
+}
+.tp-ok   { color: var(--ok);   background: var(--ok-bg); }
+.tp-warn { color: var(--warn); background: var(--warn-bg); }
+.tp-crit { color: var(--crit); background: var(--crit-bg); }
+.threshold-range { font-family: var(--mono); color: var(--muted); font-size: 11px; width: 100px; flex-shrink: 0; }
+.threshold-desc { color: var(--text); font-size: 12px; }
+.sign-row { display: flex; align-items: baseline; gap: 10px; padding: 4px 0; font-size: 12px; }
+.sign-badge {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  width: 28px; text-align: center; flex-shrink: 0;
+}
+.sign-plus  { color: var(--crit); }
+.sign-minus { color: var(--warn); }
+.sign-zero  { color: var(--ok); }
+.sign-desc { color: var(--text); }
+.sign-desc em { font-style: normal; color: var(--muted); }
+.example-row {
+  display: flex; align-items: baseline; gap: 8px;
+  padding: 5px 0; border-bottom: 1px solid var(--border); font-size: 12px;
+}
+.example-row:last-child { border-bottom: none; }
+.ex-tx { font-family: var(--mono); color: var(--muted); font-size: 11px; width: 48px; flex-shrink: 0; }
+.ex-val { font-family: var(--mono); font-weight: 700; width: 64px; flex-shrink: 0; }
+.ex-desc { color: var(--muted); line-height: 1.4; }
+.formula-box {
+  background: var(--bg); border: 1px solid var(--border);
+  border-radius: 4px; padding: 10px 14px;
+  font-family: var(--mono); font-size: 12px; color: var(--text-muted);
+  line-height: 1.7;
+}
+.formula-box span { color: var(--accent); }
+.formula-box em   { color: var(--muted); font-style: normal; }
+
 /* Footer */
 .app-footer {
   padding: 12px 28px; border-top: 1px solid var(--border);
@@ -389,6 +467,83 @@ tr:hover td { background: var(--s2); }
         </table>
       </div>
     </div>
+
+    <!-- ── Guide ── -->
+    <div class="guide">
+      <div class="guide-top">Jak czytać wyniki uzgodnienia</div>
+      <div class="guide-body">
+
+        <div class="guide-block">
+          <div class="guide-block-title">Kolumny tabeli</div>
+          <div class="guide-row"><span class="guide-key">Kurs użyty</span><span class="guide-val">Kurs, po którym bank lub broker faktycznie rozliczył transakcję</span></div>
+          <div class="guide-row"><span class="guide-key">Ref NBP / ECB</span><span class="guide-val">Kursy referencyjne pobrane na żywo z API w chwili uruchomienia</span></div>
+          <div class="guide-row"><span class="guide-key">Odchylenie</span><span class="guide-val">Różnica między kursem transakcji a referencyjnym — od tego źródła, które daje większe odchylenie</span></div>
+          <div class="guide-row"><span class="guide-key">Platforma</span><span class="guide-val">Które źródło (NBP czy ECB) dało większe odchylenie dla tej transakcji</span></div>
+          <div class="guide-row"><span class="guide-key">Status</span><span class="guide-val">Wynik audytu na podstawie progów skonfigurowanych w <em>Set Config</em></span></div>
+
+          <div class="guide-block-title" style="margin-top:8px;">Formuła odchylenia</div>
+          <div class="formula-box">
+            <span>odchylenie</span> = (<span>kurs użyty</span> − <em>kurs ref</em>) / <em>kurs ref</em> × 100%<br>
+            <em>brane pod uwagę: większe z |NBP|, |ECB|</em>
+          </div>
+        </div>
+
+        <div class="guide-block">
+          <div class="guide-block-title">Progi statusów <em style="font-style:normal;color:var(--dim)">(konfigurowalny w Set Config)</em></div>
+          <div class="threshold-row">
+            <span class="threshold-pill tp-ok">OK</span>
+            <span class="threshold-range">|dev| &lt; 0.5%</span>
+            <span class="threshold-desc">Kurs mieści się w normie rynkowej</span>
+          </div>
+          <div class="threshold-row">
+            <span class="threshold-pill tp-warn">WARNING</span>
+            <span class="threshold-range">0.5% – 2.0%</span>
+            <span class="threshold-desc">Odchylenie wymaga wyjaśnienia; nie blokuje rozrachunku</span>
+          </div>
+          <div class="threshold-row">
+            <span class="threshold-pill tp-crit">CRITICAL</span>
+            <span class="threshold-range">|dev| &gt; 2.0%</span>
+            <span class="threshold-desc">Przekroczenie progu 4× — natychmiastowy alert Teams</span>
+          </div>
+
+          <div class="guide-block-title" style="margin-top:8px;">Znak odchylenia</div>
+          <div class="sign-row"><span class="sign-badge sign-plus">+</span><span class="sign-desc">Broker rozliczył <strong>drożej</strong> niż rynek — <em>klient przepłacił</em></span></div>
+          <div class="sign-row"><span class="sign-badge sign-minus">−</span><span class="sign-desc">Kurs poniżej rynku — <em>rzadkie; możliwy błąd danych lub korzystna wycena</em></span></div>
+          <div class="sign-row"><span class="sign-badge sign-zero">≈0</span><span class="sign-desc">Kurs zgodny z rynkiem — <em>wzorcowa transakcja</em></span></div>
+        </div>
+
+        <div class="guide-block" style="grid-column:1/-1;">
+          <div class="guide-block-title">Przykłady interpretacji (z bieżącej symulacji)</div>
+          <div class="example-row">
+            <span class="ex-tx">TX008</span>
+            <span class="ex-val col-crit">+3.71%</span>
+            <span class="ex-desc">EUR/PLN, FOREX-X — broker sprzedał EUR o 3.7% drożej niż NBP; silna przesłanka do eskalacji lub reklamacji</span>
+          </div>
+          <div class="example-row">
+            <span class="ex-tx">TX009</span>
+            <span class="ex-val col-crit">+5.09%</span>
+            <span class="ex-desc">USD/PLN, FOREX-X — najwyższe odchylenie w zestawie; ten sam kontrahent co TX008 — wzorzec sugeruje systematyczne zawyżanie</span>
+          </div>
+          <div class="example-row">
+            <span class="ex-tx">TX010</span>
+            <span class="ex-val col-crit">−4.44%</span>
+            <span class="ex-desc">GBP/PLN, BROKER-Z — kurs znacznie poniżej rynku; może być błąd danych lub odwrócony kurs kupno/sprzedaż</span>
+          </div>
+          <div class="example-row">
+            <span class="ex-tx">TX006</span>
+            <span class="ex-val col-warn">−1.37%</span>
+            <span class="ex-desc">USD/PLN, SANTANDER — odchylenie w strefie WARNING; wymaga sprawdzenia, ale nie wyzwala alertu krytycznego</span>
+          </div>
+          <div class="example-row">
+            <span class="ex-tx">TX011</span>
+            <span class="ex-val col-ok">0.0000%</span>
+            <span class="ex-desc">EUR/PLN, PEKAO — kurs identyczny z NBP; wzorzec prawidłowego rozrachunku</span>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </section>
 
 </main>
