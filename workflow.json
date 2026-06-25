@@ -121,7 +121,8 @@
       "name": "HTML → PDF (Gotenberg)",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [ 820, 80 ]
+      "position": [ 820, 80 ],
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -155,7 +156,7 @@
       "type": "n8n-nodes-base.emailSend",
       "typeVersion": 2.1,
       "position": [ 1260, 80 ],
-      "credentials": { "smtp": { "id": "REPLACE_SMTP_CRED", "name": "SMTP" } }
+      "continueOnFail": true
     },
     {
       "parameters": {
