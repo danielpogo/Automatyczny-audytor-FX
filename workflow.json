@@ -291,12 +291,10 @@
   "settings": { "executionOrder": "v1" },
   "active": false,
   "pinData": {
-    "Parse & Normalize TX": [
-      { "json": { "machine": "azure-vm-fra-01", "txId": "TX001", "ts": "2026-06-25T08:01:00Z", "pair": "EUR/PLN", "amount": 50000, "rate": 4.2510, "counterparty": "BANK-A" } },
-      { "json": { "machine": "azure-vm-fra-01", "txId": "TX002", "ts": "2026-06-25T08:15:00Z", "pair": "USD/PLN", "amount": 30000, "rate": 3.9320, "counterparty": "BANK-B" } },
-      { "json": { "machine": "azure-vm-fra-02", "txId": "TX003", "ts": "2026-06-25T09:00:00Z", "pair": "EUR/PLN", "amount": 75000, "rate": 4.3820, "counterparty": "BANK-C" } },
-      { "json": { "machine": "azure-vm-fra-02", "txId": "TX004", "ts": "2026-06-25T09:30:00Z", "pair": "GBP/PLN", "amount": 20000, "rate": 5.0450, "counterparty": "BANK-A" } },
-      { "json": { "machine": "azure-vm-waw-01", "txId": "TX005", "ts": "2026-06-25T10:00:00Z", "pair": "CHF/PLN", "amount": 10000, "rate": 4.4600, "counterparty": "BANK-D" } }
+    "Fetch Files (SSH)": [
+      { "json": { "machine": "azure-vm-fra-01", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX001,2026-06-25T08:01:00Z,EUR/PLN,50000,4.2510,BANK-A\nTX002,2026-06-25T08:15:00Z,USD/PLN,30000,3.9320,BANK-B" } },
+      { "json": { "machine": "azure-vm-fra-02", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX003,2026-06-25T09:00:00Z,EUR/PLN,75000,4.3820,BANK-C\nTX004,2026-06-25T09:30:00Z,GBP/PLN,20000,5.0450,BANK-A" } },
+      { "json": { "machine": "azure-vm-waw-01", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX005,2026-06-25T10:00:00Z,CHF/PLN,10000,4.4600,BANK-D" } }
     ]
   }
 }
