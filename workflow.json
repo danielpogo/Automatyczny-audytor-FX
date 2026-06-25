@@ -13,7 +13,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\n// fileSource: 'ssh' (VM-ki) albo 'blob' (Azure Blob). trackCurrencies: pary X/PLN do audytu.\nreturn [{ json: {\n  fileSource: 'ssh',\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  machines: [\n    { machine: 'azure-vm-fra-01', host: '10.0.1.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-01/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-fra-02', host: '10.0.1.12', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-02/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-waw-01', host: '10.0.2.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-waw-01/today.csv?REPLACE_SAS' }\n  ],\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
+        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\n// fileSource: 'ssh' (VM-ki) albo 'blob' (Azure Blob). trackCurrencies: pary X/PLN do audytu.\nreturn [{ json: {\n  fileSource: 'blob',\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  machines: [\n    { machine: 'azure-vm-fra-01', host: '10.0.1.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-01/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-fra-02', host: '10.0.1.12', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-fra-02/today.csv?REPLACE_SAS' },\n    { machine: 'azure-vm-waw-01', host: '10.0.2.11', user: 'azureuser', path: '/data/tx/today.csv', blob: 'https://youracct.blob.core.windows.net/tx/azure-vm-waw-01/today.csv?REPLACE_SAS' }\n  ],\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
       },
       "id": "node-config",
       "name": "Set Config",
@@ -291,10 +291,10 @@
   "settings": { "executionOrder": "v1" },
   "active": false,
   "pinData": {
-    "Fetch Files (SSH)": [
-      { "json": { "machine": "azure-vm-fra-01", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX001,2026-06-25T08:01:00Z,EUR/PLN,50000,4.2510,BANK-A\nTX002,2026-06-25T08:15:00Z,USD/PLN,30000,3.9320,BANK-B" } },
-      { "json": { "machine": "azure-vm-fra-02", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX003,2026-06-25T09:00:00Z,EUR/PLN,75000,4.3820,BANK-C\nTX004,2026-06-25T09:30:00Z,GBP/PLN,20000,5.0450,BANK-A" } },
-      { "json": { "machine": "azure-vm-waw-01", "stdout": "txId,timestamp,pair,amount,rate,counterparty\nTX005,2026-06-25T10:00:00Z,CHF/PLN,10000,4.4600,BANK-D" } }
+    "Fetch Files (Azure Blob)": [
+      { "json": { "machine": "azure-vm-fra-01", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX001,2026-06-25T08:01:00Z,EUR/PLN,50000,4.2510,BANK-A\nTX002,2026-06-25T08:15:00Z,USD/PLN,30000,3.9320,BANK-B" } },
+      { "json": { "machine": "azure-vm-fra-02", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX003,2026-06-25T09:00:00Z,EUR/PLN,75000,4.3820,BANK-C\nTX004,2026-06-25T09:30:00Z,GBP/PLN,20000,5.0450,BANK-A" } },
+      { "json": { "machine": "azure-vm-waw-01", "data": "txId,timestamp,pair,amount,rate,counterparty\nTX005,2026-06-25T10:00:00Z,CHF/PLN,10000,4.4600,BANK-D" } }
     ]
   }
 }
