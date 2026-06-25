@@ -13,7 +13,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Jedno źródło prawdy. Sekrety trzymaj w Credentials, nie tutaj.\n// fileSource: 'ssh' (VM-ki) albo 'blob' (Azure Blob). trackCurrencies: pary X/PLN do audytu.\nreturn [{ json: {\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://youracct.blob.core.windows.net/reports',\n  recipients: 'risk-team@example.com',\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
+        "jsCode": "// Jedno źródło prawdy.\n// UWAGA: SAS tokeny wygasają — przed wdrożeniem produkcyjnym zastąp je\n// tokenami bez daty wygaśnięcia lub przejdź na Managed Identity.\nreturn [{ json: {\n  tolerancePct: 0.5,\n  criticalMultiplier: 4,\n  trackCurrencies: ['EUR','USD','GBP','CHF'],\n  gotenbergUrl: 'http://gotenberg:3000',\n  blobBase: 'https://genaimbank20146287194.blob.core.windows.net/azureml',\n  recipients: 'risk-team@example.com',\n  fileSource: 'blob',\n  machines: [\n    {\n      name: 'vm-1',\n      blob: 'https://genaimbankdp8236668111.blob.core.windows.net/azureml/fx/transactions-vm1.csv?sp=rw&st=2026-06-25T12:09:50Z&se=2026-06-25T20:24:50Z&spr=https&sv=2026-02-06&sr=c&sig=zCTeBKYo0ZGhkBWRN6MKMspBFC43p9Jyp284JiSZYWE%3D'\n    },\n    {\n      name: 'vm-2',\n      blob: 'https://genaimbank20146287194.blob.core.windows.net/azureml/fx/transactions-vm2.csv?sp=rw&st=2026-06-25T12:07:34Z&se=2026-06-25T20:22:34Z&spr=https&sv=2026-02-06&sr=c&sig=a1%2FNiDmjegadnGn3PQoY%2B53xZrJQkSJ%2FDODiHw%2FE40A%3D'\n    }\n  ],\n  platforms: [\n    { name: 'NBP', url: 'https://api.nbp.pl/api/exchangerates/tables/A?format=json' },\n    { name: 'ECB', url: 'https://api.frankfurter.app/latest?from=EUR' }\n  ]\n}}];"
       },
       "id": "node-config",
       "name": "Set Config",
@@ -23,13 +23,46 @@
     },
     {
       "parameters": {
-        "jsCode": "// Symulacja 4 plików CSV — różne scenariusze odchyleń.\n// Kursy referencyjne (NBP/ECB) są pobierane na żywo; poniższe wartości\n// są celowo przesunięte względem typowych kursów rynkowych:\n//   OK       = odchylenie < 0.5%\n//   WARNING  = odchylenie 0.5%–2%\n//   CRITICAL = odchylenie > 2%  (próg * 4)\n\n// sim-file-A: normalny dzień, wszystkie transakcje w normie (OK)\nconst fileA = [\n  { machine: 'sim-file-A', txId: 'TX001', ts: '2026-06-25T07:00:00Z', pair: 'EUR/PLN', amount: 100000, rate: 4.2250, counterparty: 'PKO-BP' },\n  { machine: 'sim-file-A', txId: 'TX002', ts: '2026-06-25T07:15:00Z', pair: 'USD/PLN', amount:  80000, rate: 3.8750, counterparty: 'PEKAO' },\n  { machine: 'sim-file-A', txId: 'TX003', ts: '2026-06-25T07:30:00Z', pair: 'GBP/PLN', amount:  40000, rate: 5.0200, counterparty: 'MBANK' },\n  { machine: 'sim-file-A', txId: 'TX004', ts: '2026-06-25T07:45:00Z', pair: 'CHF/PLN', amount:  25000, rate: 4.4200, counterparty: 'ING-PL' },\n];\n\n// sim-file-B: drobne odchylenia — WARNING (0.6%–1.5%)\nconst fileB = [\n  { machine: 'sim-file-B', txId: 'TX005', ts: '2026-06-25T08:00:00Z', pair: 'EUR/PLN', amount:  60000, rate: 4.2510, counterparty: 'PKO-BP' },  // +0.6%\n  { machine: 'sim-file-B', txId: 'TX006', ts: '2026-06-25T08:20:00Z', pair: 'USD/PLN', amount:  45000, rate: 3.8170, counterparty: 'SANTANDER' }, // -1.5%\n  { machine: 'sim-file-B', txId: 'TX007', ts: '2026-06-25T08:40:00Z', pair: 'CHF/PLN', amount:  30000, rate: 4.4600, counterparty: 'BNP-PL' },   // +0.9%\n];\n\n// sim-file-C: poważne przekroczenia — CRITICAL (>2%)\nconst fileC = [\n  { machine: 'sim-file-C', txId: 'TX008', ts: '2026-06-25T09:00:00Z', pair: 'EUR/PLN', amount: 200000, rate: 4.3820, counterparty: 'FOREX-X' },  // +3.7%\n  { machine: 'sim-file-C', txId: 'TX009', ts: '2026-06-25T09:15:00Z', pair: 'USD/PLN', amount:  90000, rate: 4.0500, counterparty: 'FOREX-X' },  // +4.5%\n  { machine: 'sim-file-C', txId: 'TX010', ts: '2026-06-25T09:30:00Z', pair: 'GBP/PLN', amount:  50000, rate: 4.8000, counterparty: 'BROKER-Z' }, // -4.4%\n];\n\n// sim-file-D: wartości graniczne — tuż przy progu WARNING i CRITICAL\nconst fileD = [\n  { machine: 'sim-file-D', txId: 'TX011', ts: '2026-06-25T10:00:00Z', pair: 'EUR/PLN', amount:  15000, rate: 4.2460, counterparty: 'PEKAO' },    // ~+0.49% -> OK\n  { machine: 'sim-file-D', txId: 'TX012', ts: '2026-06-25T10:10:00Z', pair: 'USD/PLN', amount:  20000, rate: 3.8560, counterparty: 'MBANK' },    // ~+0.54% -> WARNING\n  { machine: 'sim-file-D', txId: 'TX013', ts: '2026-06-25T10:20:00Z', pair: 'CHF/PLN', amount:  12000, rate: 4.5100, counterparty: 'ING-PL' },   // ~+2.0% -> CRITICAL\n];\n\nreturn [...fileA, ...fileB, ...fileC, ...fileD].map(t => ({ json: t }));"
+        "jsCode": "// Zwraca po jednym item na maszynę — HTTP wykona się raz na maszynę.\nreturn $('Set Config').first().json.machines.map(m => ({ json: m }));"
       },
-      "id": "node-simulate",
-      "name": "Simulate TX Data",
+      "id": "node-machines",
+      "name": "Machines List",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [ -920, 60 ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.blob }}",
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "text",
+              "outputPropertyName": "data"
+            }
+          },
+          "timeout": 15000
+        }
+      },
+      "id": "node-fetch-blob",
+      "name": "Fetch Files (Blob)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [ -700, 60 ],
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parsuje CSV z każdej maszyny → wspólny schemat { machine, txId, ts, pair, amount, rate, counterparty }.\n// Nazwa maszyny pochodzi z Machines List (ten sam index co odpowiedź HTTP).\nconst machines = $('Machines List').all();\nconst rows = [];\nfor (let i = 0; i < $input.all().length; i++) {\n  const item = $input.all()[i];\n  const csv = item.json.data || '';\n  const machineName = machines[i] ? machines[i].json.name : 'machine-' + (i + 1);\n  if (!csv.trim()) continue;\n  const lines = csv.trim().split('\\n');\n  for (const line of lines.slice(1)) {\n    const parts = line.split(',');\n    if (parts.length < 6 || !parts[0].trim()) continue;\n    const [txId, ts, pair, amount, rate, counterparty] = parts;\n    rows.push({ json: {\n      machine: machineName,\n      txId: txId.trim(),\n      ts: ts.trim(),\n      pair: pair.trim(),\n      amount: Number(amount.trim()),\n      rate: Number(rate.trim()),\n      counterparty: (counterparty || '').trim()\n    }});\n  }\n}\nreturn rows;"
+      },
+      "id": "node-parse-tx",
+      "name": "Parse & Normalize TX",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [ -480, 60 ]
     },
     {
       "parameters": {
@@ -76,7 +109,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Uzgodnienie: odchylenie kursu transakcji od każdej platformy (najbliższy czasowo kurs).\nconst txs = $('Simulate TX Data').all().map(i => i.json);\nconst rates = $('Normalize Rates').all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst tol = cfg.tolerancePct ?? 0.5;\nconst critX = cfg.criticalMultiplier ?? 4;\nconst platforms = [...new Set(rates.map(r => r.platform))];\nfunction refRate(pair, platform, ts) {\n  const c = rates.filter(r => r.pair === pair && r.platform === platform);\n  if (!c.length) return null;\n  c.sort((a, b) => Math.abs(new Date(a.ts) - new Date(ts)) - Math.abs(new Date(b.ts) - new Date(ts)));\n  return c[0].rate;\n}\nconst out = [];\nfor (const t of txs) {\n  const row = { machine: t.machine, txId: t.txId, pair: t.pair, ts: t.ts, usedRate: t.rate, refs: {}, maxDeviationPct: 0, worstPlatform: null, severity: 'OK' };\n  for (const p of platforms) {\n    const rr = refRate(t.pair, p, t.ts);\n    if (rr == null) { row.refs[p] = null; continue; }\n    const dev = ((t.rate - rr) / rr) * 100;\n    row.refs[p] = { rate: Math.round(rr * 1e6) / 1e6, deviationPct: Math.round(dev * 1e4) / 1e4 };\n    if (Math.abs(dev) > Math.abs(row.maxDeviationPct)) { row.maxDeviationPct = Math.round(dev * 1e4) / 1e4; row.worstPlatform = p; }\n  }\n  const ad = Math.abs(row.maxDeviationPct);\n  row.severity = ad > tol * critX ? 'CRITICAL' : ad > tol ? 'WARNING' : 'OK';\n  out.push({ json: row });\n}\nreturn out;"
+        "jsCode": "// Uzgodnienie: odchylenie kursu transakcji od każdej platformy (najbliższy czasowo kurs).\nconst txs = $('Parse & Normalize TX').all().map(i => i.json);\nconst rates = $('Normalize Rates').all().map(i => i.json);\nconst cfg = $('Set Config').first().json;\nconst tol = cfg.tolerancePct ?? 0.5;\nconst critX = cfg.criticalMultiplier ?? 4;\nconst platforms = [...new Set(rates.map(r => r.platform))];\nfunction refRate(pair, platform, ts) {\n  const c = rates.filter(r => r.pair === pair && r.platform === platform);\n  if (!c.length) return null;\n  c.sort((a, b) => Math.abs(new Date(a.ts) - new Date(ts)) - Math.abs(new Date(b.ts) - new Date(ts)));\n  return c[0].rate;\n}\nconst out = [];\nfor (const t of txs) {\n  const row = { machine: t.machine, txId: t.txId, pair: t.pair, ts: t.ts, usedRate: t.rate, refs: {}, maxDeviationPct: 0, worstPlatform: null, severity: 'OK' };\n  for (const p of platforms) {\n    const rr = refRate(t.pair, p, t.ts);\n    if (rr == null) { row.refs[p] = null; continue; }\n    const dev = ((t.rate - rr) / rr) * 100;\n    row.refs[p] = { rate: Math.round(rr * 1e6) / 1e6, deviationPct: Math.round(dev * 1e4) / 1e4 };\n    if (Math.abs(dev) > Math.abs(row.maxDeviationPct)) { row.maxDeviationPct = Math.round(dev * 1e4) / 1e4; row.worstPlatform = p; }\n  }\n  const ad = Math.abs(row.maxDeviationPct);\n  row.severity = ad > tol * critX ? 'CRITICAL' : ad > tol ? 'WARNING' : 'OK';\n  out.push({ json: row });\n}\nreturn out;"
       },
       "id": "node-reconcile",
       "name": "Reconcile",
@@ -213,8 +246,10 @@
   ],
   "connections": {
     "Schedule Trigger": { "main": [ [ { "node": "Set Config", "type": "main", "index": 0 } ] ] },
-    "Set Config": { "main": [ [ { "node": "Simulate TX Data", "type": "main", "index": 0 }, { "node": "Platforms List", "type": "main", "index": 0 } ] ] },
-    "Simulate TX Data": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 0 } ] ] },
+    "Set Config": { "main": [ [ { "node": "Machines List", "type": "main", "index": 0 }, { "node": "Platforms List", "type": "main", "index": 0 } ] ] },
+    "Machines List": { "main": [ [ { "node": "Fetch Files (Blob)", "type": "main", "index": 0 } ] ] },
+    "Fetch Files (Blob)": { "main": [ [ { "node": "Parse & Normalize TX", "type": "main", "index": 0 } ] ] },
+    "Parse & Normalize TX": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 0 } ] ] },
     "Platforms List": { "main": [ [ { "node": "Fetch Rates", "type": "main", "index": 0 } ] ] },
     "Fetch Rates": { "main": [ [ { "node": "Normalize Rates", "type": "main", "index": 0 } ] ] },
     "Normalize Rates": { "main": [ [ { "node": "Sync (Merge)", "type": "main", "index": 1 } ] ] },
