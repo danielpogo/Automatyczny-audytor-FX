@@ -1,0 +1,894 @@
+<title>Audytor FX — Symulator Workflow</title>
+<style>
+:root {
+  --bg: #060c18;
+  --s1: #0d1628;
+  --s2: #14203a;
+  --s3: #1a2d50;
+  --border: #1e3258;
+  --border-hi: #2d4e8a;
+  --text: #ccd9f0;
+  --muted: #52709e;
+  --dim: #2d4260;
+  --accent: #4d8bff;
+  --acc-bg: #071830;
+  --ok: #22c55e;
+  --ok-bg: #071a0e;
+  --warn: #f59e0b;
+  --warn-bg: #1a1000;
+  --crit: #f43f5e;
+  --crit-bg: #1a0610;
+  --mono: 'Menlo','Consolas','Liberation Mono',monospace;
+  --sans: system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { scroll-behavior: smooth; }
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  font-size: 13px;
+  line-height: 1.55;
+  min-height: 100vh;
+}
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 28px;
+  border-bottom: 1px solid var(--border);
+  gap: 12px;
+}
+.logo-area { display: flex; align-items: center; gap: 10px; }
+.logo-mark {
+  width: 32px; height: 32px;
+  background: var(--acc-bg);
+  border: 1px solid var(--border-hi);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 15px;
+}
+.app-name {
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text);
+}
+.app-sub {
+  font-size: 11px;
+  color: var(--muted);
+  font-family: var(--mono);
+}
+.header-right { display: flex; align-items: center; gap: 8px; }
+.chip {
+  font-size: 10px;
+  font-family: var(--mono);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 3px;
+  border: 1px solid;
+}
+.chip-blue  { color: var(--accent); border-color: #1a3360; background: #060f25; }
+.chip-amber { color: var(--warn);   border-color: #3a2200; background: #130c00; }
+.chip-ok    { color: var(--ok);     border-color: #0a2a14; background: #030d07; }
+
+/* ── Layout ── */
+.main { padding: 20px 28px; max-width: 1680px; margin: 0 auto; display: flex; flex-direction: column; gap: 20px; }
+
+/* ── Section headings ── */
+.sec-head {
+  display: flex; align-items: center; gap: 10px; margin-bottom: 12px;
+}
+.sec-tag {
+  font-size: 10px; font-family: var(--mono); letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--muted);
+  background: var(--s2); border: 1px solid var(--border);
+  padding: 1px 8px; border-radius: 2px;
+}
+.sec-line { flex: 1; height: 1px; background: var(--border); }
+.sec-info { font-size: 11px; color: var(--dim); font-family: var(--mono); }
+
+/* ── Diagram panel ── */
+.diagram-panel {
+  background: var(--s1);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  overflow: hidden;
+}
+.diagram-toolbar {
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 8px;
+  background: var(--s2);
+}
+.diagram-scroll { overflow-x: auto; padding: 20px 24px 16px; }
+#flow-svg { display: block; }
+
+/* Node states */
+.n-idle   { opacity: 0.55; transition: opacity .3s; }
+.n-active { opacity: 1; transition: opacity .15s; }
+.n-done   { opacity: 1; }
+.n-rect-idle   { fill: var(--s2); stroke: var(--border); }
+.n-rect-active { fill: #0d2550; stroke: var(--accent); stroke-width: 1.5; }
+.n-rect-done   { }
+.n-rect-done-main   { fill: #051507; stroke: var(--ok); }
+.n-rect-done-warn   { fill: #150b00; stroke: var(--warn); }
+.n-rect-done-crit   { fill: #150306; stroke: var(--crit); }
+.n-rect-done-skip   { fill: var(--s2); stroke: var(--dim); }
+
+/* Edge states */
+.e-idle   { stroke: var(--dim); stroke-dasharray: none; }
+.e-active { stroke: var(--accent); stroke-dasharray: 5 3; animation: dash .6s linear infinite; }
+.e-done   { stroke: var(--ok); }
+.e-skip   { stroke: var(--dim); }
+
+@keyframes dash { to { stroke-dashoffset: -16; } }
+
+/* ── Controls ── */
+.controls-row {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.btn-run {
+  display: flex; align-items: center; gap: 7px;
+  background: var(--accent); color: #fff;
+  border: none; border-radius: 4px;
+  padding: 8px 18px; font-size: 13px; font-weight: 600;
+  cursor: pointer; letter-spacing: 0.01em;
+  transition: background .15s, transform .1s;
+}
+.btn-run:hover:not(:disabled) { background: #6aa0ff; }
+.btn-run:active:not(:disabled) { transform: scale(.97); }
+.btn-run:disabled { background: var(--s3); color: var(--muted); cursor: not-allowed; }
+.btn-ghost {
+  background: transparent; color: var(--muted);
+  border: 1px solid var(--border); border-radius: 4px;
+  padding: 7px 13px; font-size: 12px; cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.btn-ghost:hover { border-color: var(--border-hi); color: var(--text); }
+
+.speed-label { font-size: 11px; color: var(--muted); font-family: var(--mono); }
+input[type=range] { accent-color: var(--accent); cursor: pointer; }
+
+/* ── Execution log ── */
+.exec-log {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  height: 110px;
+  overflow-y: auto;
+  padding: 10px 14px;
+  display: flex; flex-direction: column; gap: 1px;
+  scroll-behavior: smooth;
+}
+.exec-log:empty::before {
+  content: '— gotowy do uruchomienia symulacji —';
+  color: var(--dim);
+}
+.log-line {
+  display: flex; align-items: baseline; gap: 10px;
+  animation: logIn .15s ease forwards;
+}
+@keyframes logIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+.l-ts  { color: var(--dim); flex-shrink: 0; }
+.l-node { color: var(--accent); flex-shrink: 0; min-width: 160px; }
+.l-msg  { color: var(--muted); }
+.l-ok   { color: var(--ok); }
+.l-warn { color: var(--warn); }
+.l-crit { color: var(--crit); }
+
+/* ── Results ── */
+#results { display: none; flex-direction: column; gap: 16px; }
+#results.show { display: flex; }
+
+/* KPI grid */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px; }
+.kpi {
+  background: var(--s1); border: 1px solid var(--border);
+  border-radius: 5px; padding: 14px 18px; border-left: 3px solid;
+  position: relative; overflow: hidden;
+}
+.kpi::after {
+  content: ''; position: absolute; right: -8px; top: -8px;
+  width: 60px; height: 60px; border-radius: 50%;
+  opacity: 0.04; background: currentColor;
+}
+.kpi-total { border-left-color: var(--accent); color: var(--accent); }
+.kpi-ok    { border-left-color: var(--ok);     color: var(--ok); }
+.kpi-warn  { border-left-color: var(--warn);   color: var(--warn); }
+.kpi-crit  { border-left-color: var(--crit);   color: var(--crit); }
+.kpi-n {
+  font-size: 36px; font-weight: 700; line-height: 1;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 3px;
+}
+.kpi-label {
+  font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.09em; color: var(--muted);
+  font-family: var(--mono);
+}
+
+/* Table */
+.tbl-panel { background: var(--s1); border: 1px solid var(--border); border-radius: 5px; overflow: hidden; }
+.tbl-top {
+  padding: 10px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  background: var(--s2);
+}
+.tbl-title { font-size: 11px; font-weight: 600; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.tbl-count { font-size: 11px; font-family: var(--mono); color: var(--dim); }
+.tbl-scroll { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 12px; font-variant-numeric: tabular-nums; }
+th {
+  background: var(--s2); color: var(--muted);
+  font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em;
+  font-weight: 600; padding: 7px 14px; text-align: left;
+  white-space: nowrap; border-bottom: 1px solid var(--border);
+}
+td { padding: 8px 14px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--s2); }
+.cell-mono { font-family: var(--mono); }
+.cell-muted { color: var(--muted); }
+.cell-num { text-align: right; font-family: var(--mono); }
+
+.pill {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.05em;
+  font-family: var(--mono); text-transform: uppercase;
+  padding: 2px 7px; border-radius: 2px;
+}
+.pill::before { content:''; width:4px; height:4px; border-radius:50%; background:currentColor; }
+.pill-ok   { color: var(--ok);   background: var(--ok-bg);   }
+.pill-warn { color: var(--warn); background: var(--warn-bg); }
+.pill-crit { color: var(--crit); background: var(--crit-bg); }
+
+.dev-wrap { display: flex; align-items: center; gap: 6px; }
+.dev-bar { width: 48px; height: 3px; background: var(--s3); border-radius: 2px; overflow: hidden; flex-shrink: 0; }
+.dev-fill { height: 100%; border-radius: 2px; }
+.col-ok   { color: var(--ok); }
+.col-warn { color: var(--warn); }
+.col-crit { color: var(--crit); }
+
+/* Legend */
+.legend { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+.legend-item { display: flex; align-items: center; gap: 6px; font-size: 11px; color: var(--muted); }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; border: 1px solid; }
+.ld-trigger { background: #1f1000; border-color: #e67e00; }
+.ld-code    { background: #071425; border-color: var(--accent); }
+.ld-http    { background: #120b2a; border-color: #8b5cf6; }
+.ld-merge   { background: #001a18; border-color: #14b8a6; }
+.ld-filter  { background: #1a1500; border-color: #eab308; }
+.ld-email   { background: #071a0e; border-color: var(--ok); }
+.ld-error   { background: #1a0006; border-color: var(--crit); }
+
+/* Footer */
+.app-footer {
+  padding: 12px 28px; border-top: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  color: var(--dim); font-size: 10.5px; font-family: var(--mono);
+}
+
+@media (max-width: 600px) {
+  .app-header { flex-direction: column; align-items: flex-start; }
+  .main { padding: 14px 16px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { animation: none !important; transition: none !important; }
+}
+</style>
+
+<!-- ════════════════════════════════════════════════════════════════════ -->
+<div class="app-header">
+  <div class="logo-area">
+    <div class="logo-mark">◈</div>
+    <div>
+      <div class="app-name">Automatyczny Audytor FX</div>
+      <div class="app-sub">Kokpit rozbieżności kursowych · multi-platform</div>
+    </div>
+  </div>
+  <div class="header-right">
+    <span class="chip chip-amber">⏰ 0 6 * * *</span>
+    <span class="chip chip-blue">n8n workflow</span>
+    <span class="chip chip-ok" id="status-chip">GOTOWY</span>
+  </div>
+</div>
+
+<main class="main">
+
+  <!-- ── 1. Diagram ── -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-tag">Diagram przepływu</span>
+      <div class="sec-line"></div>
+      <div class="legend">
+        <span class="legend-item"><span class="legend-dot ld-trigger"></span>Trigger</span>
+        <span class="legend-item"><span class="legend-dot ld-code"></span>Code</span>
+        <span class="legend-item"><span class="legend-dot ld-http"></span>HTTP</span>
+        <span class="legend-item"><span class="legend-dot ld-merge"></span>Merge</span>
+        <span class="legend-item"><span class="legend-dot ld-filter"></span>Filter</span>
+        <span class="legend-item"><span class="legend-dot ld-email"></span>Email</span>
+        <span class="legend-item"><span class="legend-dot ld-error"></span>Error</span>
+      </div>
+    </div>
+    <div class="diagram-panel">
+      <div class="diagram-toolbar">
+        <span class="sec-tag">SVG · 17 węzłów · 16 połączeń</span>
+      </div>
+      <div class="diagram-scroll">
+        <svg id="flow-svg" width="1780" height="500" viewBox="0 0 1780 500"></svg>
+      </div>
+    </div>
+  </section>
+
+  <!-- ── 2. Controls + Log ── -->
+  <section>
+    <div class="sec-head">
+      <span class="sec-tag">Symulacja</span>
+      <div class="sec-line"></div>
+      <span class="sec-info" id="progress-info">—</span>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:10px;">
+      <div class="controls-row">
+        <button class="btn-run" id="btn-run" onclick="startSim()">
+          <svg width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="5,3 19,12 5,21"/></svg>
+          Uruchom symulację
+        </button>
+        <button class="btn-ghost" id="btn-reset" onclick="resetSim()" disabled>↺ Reset</button>
+        <span class="speed-label">Prędkość:</span>
+        <input type="range" id="speed" min="1" max="5" value="3" style="width:80px;">
+        <span class="sec-info" id="speed-label">×1</span>
+      </div>
+      <div class="exec-log" id="exec-log"></div>
+    </div>
+  </section>
+
+  <!-- ── 3. Results ── -->
+  <section id="results">
+    <div class="sec-head">
+      <span class="sec-tag">Wyniki uzgodnienia</span>
+      <div class="sec-line"></div>
+      <span class="sec-info" id="result-date">—</span>
+    </div>
+
+    <div class="kpi-grid">
+      <div class="kpi kpi-total"><div class="kpi-n" id="kpi-total">—</div><div class="kpi-label">Transakcji</div></div>
+      <div class="kpi kpi-ok">   <div class="kpi-n" id="kpi-ok">—</div><div class="kpi-label">OK</div></div>
+      <div class="kpi kpi-warn"> <div class="kpi-n" id="kpi-warn">—</div><div class="kpi-label">Warning</div></div>
+      <div class="kpi kpi-crit"> <div class="kpi-n" id="kpi-crit">—</div><div class="kpi-label">Critical</div></div>
+    </div>
+
+    <div class="tbl-panel">
+      <div class="tbl-top">
+        <span class="tbl-title">Wynik uzgodnienia — transakcje</span>
+        <span class="tbl-count" id="tbl-count"></span>
+      </div>
+      <div class="tbl-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>TxID</th>
+              <th>Maszyna</th>
+              <th>Para</th>
+              <th>Kontrahent</th>
+              <th>Kurs użyty</th>
+              <th>Ref NBP</th>
+              <th>Ref ECB</th>
+              <th>Odchylenie</th>
+              <th>Platforma</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="app-footer">
+  <span>workflow: Kokpit rozbieżności kursowych (multi-Azure, multi-platforma)</span>
+  <span id="footer-ts">symulator · 2026-06-25</span>
+</footer>
+
+<script>
+// ══════════════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════════════
+const CONFIG = {
+  tolerancePct: 0.5,
+  criticalMultiplier: 4,
+  trackCurrencies: ['EUR','USD','GBP','CHF'],
+  platforms: ['NBP','ECB'],
+};
+
+// Simulated reference rates (what NBP/ECB API returns)
+const REF_RATES = [
+  { platform:'NBP', pair:'EUR/PLN', rate:4.2460, ts:'2026-06-25' },
+  { platform:'NBP', pair:'USD/PLN', rate:3.8540, ts:'2026-06-25' },
+  { platform:'NBP', pair:'GBP/PLN', rate:5.0230, ts:'2026-06-25' },
+  { platform:'NBP', pair:'CHF/PLN', rate:4.4400, ts:'2026-06-25' },
+  { platform:'ECB', pair:'EUR/PLN', rate:4.2490, ts:'2026-06-25' },
+  { platform:'ECB', pair:'USD/PLN', rate:3.8560, ts:'2026-06-25' },
+  { platform:'ECB', pair:'GBP/PLN', rate:5.0210, ts:'2026-06-25' },
+  { platform:'ECB', pair:'CHF/PLN', rate:4.4380, ts:'2026-06-25' },
+];
+
+// Transaction data from simulate node
+const TRANSACTIONS = [
+  { machine:'sim-file-A', txId:'TX001', ts:'2026-06-25T07:00:00Z', pair:'EUR/PLN', amount:100000, rate:4.2250, counterparty:'PKO-BP' },
+  { machine:'sim-file-A', txId:'TX002', ts:'2026-06-25T07:15:00Z', pair:'USD/PLN', amount: 80000, rate:3.8750, counterparty:'PEKAO' },
+  { machine:'sim-file-A', txId:'TX003', ts:'2026-06-25T07:30:00Z', pair:'GBP/PLN', amount: 40000, rate:5.0200, counterparty:'MBANK' },
+  { machine:'sim-file-A', txId:'TX004', ts:'2026-06-25T07:45:00Z', pair:'CHF/PLN', amount: 25000, rate:4.4200, counterparty:'ING-PL' },
+  { machine:'sim-file-B', txId:'TX005', ts:'2026-06-25T08:00:00Z', pair:'EUR/PLN', amount: 60000, rate:4.2510, counterparty:'PKO-BP' },
+  { machine:'sim-file-B', txId:'TX006', ts:'2026-06-25T08:20:00Z', pair:'USD/PLN', amount: 45000, rate:3.8170, counterparty:'SANTANDER' },
+  { machine:'sim-file-B', txId:'TX007', ts:'2026-06-25T08:40:00Z', pair:'CHF/PLN', amount: 30000, rate:4.4600, counterparty:'BNP-PL' },
+  { machine:'sim-file-C', txId:'TX008', ts:'2026-06-25T09:00:00Z', pair:'EUR/PLN', amount:200000, rate:4.3820, counterparty:'FOREX-X' },
+  { machine:'sim-file-C', txId:'TX009', ts:'2026-06-25T09:15:00Z', pair:'USD/PLN', amount: 90000, rate:4.0500, counterparty:'FOREX-X' },
+  { machine:'sim-file-C', txId:'TX010', ts:'2026-06-25T09:30:00Z', pair:'GBP/PLN', amount: 50000, rate:4.8000, counterparty:'BROKER-Z' },
+  { machine:'sim-file-D', txId:'TX011', ts:'2026-06-25T10:00:00Z', pair:'EUR/PLN', amount: 15000, rate:4.2460, counterparty:'PEKAO' },
+  { machine:'sim-file-D', txId:'TX012', ts:'2026-06-25T10:10:00Z', pair:'USD/PLN', amount: 20000, rate:3.8560, counterparty:'MBANK' },
+  { machine:'sim-file-D', txId:'TX013', ts:'2026-06-25T10:20:00Z', pair:'CHF/PLN', amount: 12000, rate:4.5100, counterparty:'ING-PL' },
+];
+
+// ══════════════════════════════════════════════════════
+//  DIAGRAM
+// ══════════════════════════════════════════════════════
+const NW = 148, NH = 36, NR = 5;
+
+const TYPE_STYLE = {
+  trigger: { stroke:'#e67e00', fill:'#1a0c00', icon:'⏱' },
+  code:    { stroke:'#4d8bff', fill:'#071222', icon:'<>' },
+  http:    { stroke:'#8b5cf6', fill:'#100820', icon:'↗' },
+  merge:   { stroke:'#14b8a6', fill:'#001816', icon:'⊕' },
+  filter:  { stroke:'#eab308', fill:'#181000', icon:'▽' },
+  email:   { stroke:'#22c55e', fill:'#051208', icon:'✉' },
+  error:   { stroke:'#f43f5e', fill:'#160308', icon:'!' },
+};
+
+// cx, cy = center
+const NODES = [
+  { id:'schedule', label:'Schedule Trigger',     type:'trigger', cx: 90,  cy:220 },
+  { id:'config',   label:'Set Config',           type:'code',    cx:270,  cy:220 },
+  { id:'txdata',   label:'Simulate TX Data',     type:'code',    cx:460,  cy:100 },
+  { id:'plat',     label:'Platforms List',       type:'code',    cx:460,  cy:340 },
+  { id:'fetch',    label:'Fetch Rates',          type:'http',    cx:640,  cy:340 },
+  { id:'norm',     label:'Normalize Rates',      type:'code',    cx:820,  cy:340 },
+  { id:'merge',    label:'Sync (Merge)',         type:'merge',   cx:990,  cy:220 },
+  { id:'reconcile',label:'Reconcile',            type:'code',    cx:1170, cy:220 },
+  { id:'report',   label:'Build HTML Report',   type:'code',    cx:1360, cy:100 },
+  { id:'binary',   label:'HTML → Binary',       type:'code',    cx:1530, cy:100 },
+  { id:'pdf',      label:'HTML → PDF',          type:'http',    cx:1640, cy:100 },
+  { id:'blob',     label:'Upload to Blob',       type:'http',    cx:1640, cy:180 },
+  { id:'email',    label:'Email Report',         type:'email',   cx:1640, cy:260 },
+  { id:'filter',   label:'Filter CRITICAL',      type:'filter',  cx:1360, cy:340 },
+  { id:'teams',    label:'Alert Teams',          type:'http',    cx:1530, cy:340 },
+  { id:'errtrig',  label:'Error Trigger',        type:'error',   cx:1360, cy:440 },
+  { id:'notify',   label:'Notify Failure',       type:'http',    cx:1530, cy:440 },
+];
+
+// Edges: [fromId, toId]
+const EDGES = [
+  ['schedule','config'],
+  ['config','txdata'],
+  ['config','plat'],
+  ['txdata','merge'],
+  ['plat','fetch'],
+  ['fetch','norm'],
+  ['norm','merge'],
+  ['merge','reconcile'],
+  ['reconcile','report'],
+  ['reconcile','filter'],
+  ['report','binary'],
+  ['binary','pdf'],
+  ['pdf','blob'],
+  ['blob','email'],
+  ['filter','teams'],
+  ['errtrig','notify'],
+];
+
+function nodeById(id) { return NODES.find(n => n.id === id); }
+
+function buildSVG() {
+  const svg = document.getElementById('flow-svg');
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+
+  // Arrow markers
+  ['default','active','done','skip'].forEach(k => {
+    const colors = {default:'#2d4260',active:'#4d8bff',done:'#22c55e',skip:'#2d4260'};
+    const m = document.createElementNS('http://www.w3.org/2000/svg','marker');
+    m.setAttribute('id','arr-'+k);
+    m.setAttribute('markerWidth','7'); m.setAttribute('markerHeight','7');
+    m.setAttribute('refX','6'); m.setAttribute('refY','3.5');
+    m.setAttribute('orient','auto');
+    const p = document.createElementNS('http://www.w3.org/2000/svg','polygon');
+    p.setAttribute('points','0 0, 7 3.5, 0 7');
+    p.setAttribute('fill', colors[k]);
+    m.appendChild(p); defs.appendChild(m);
+  });
+  svg.appendChild(defs);
+
+  // Draw edges
+  EDGES.forEach(([fid, tid]) => {
+    const f = nodeById(fid), t = nodeById(tid);
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id = 'edge-'+fid+'-'+tid;
+
+    const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+    // Bezier from right edge of f to left edge of t
+    const x1 = f.cx + NW/2, y1 = f.cy;
+    const x2 = t.cx - NW/2, y2 = t.cy;
+    const mx = (x1 + x2) / 2;
+    path.setAttribute('d', `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`);
+    path.setAttribute('fill','none');
+    path.setAttribute('stroke','#2d4260');
+    path.setAttribute('stroke-width','1.5');
+    path.setAttribute('marker-end','url(#arr-default)');
+    path.classList.add('edge-line');
+    g.appendChild(path);
+    svg.appendChild(g);
+  });
+
+  // Draw nodes
+  NODES.forEach(n => {
+    const s = TYPE_STYLE[n.type];
+    const g = document.createElementNS('http://www.w3.org/2000/svg','g');
+    g.id = 'node-'+n.id;
+    g.setAttribute('cursor','default');
+
+    const rect = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    rect.setAttribute('x', n.cx - NW/2); rect.setAttribute('y', n.cy - NH/2);
+    rect.setAttribute('width', NW); rect.setAttribute('height', NH);
+    rect.setAttribute('rx', NR); rect.setAttribute('ry', NR);
+    rect.setAttribute('fill', s.fill);
+    rect.setAttribute('stroke', s.stroke);
+    rect.setAttribute('stroke-width','1');
+    rect.setAttribute('opacity','0.55');
+    rect.classList.add('node-rect');
+    g.appendChild(rect);
+
+    // Type badge
+    const badge = document.createElementNS('http://www.w3.org/2000/svg','rect');
+    badge.setAttribute('x', n.cx - NW/2 + 1); badge.setAttribute('y', n.cy - NH/2 + 1);
+    badge.setAttribute('width', 24); badge.setAttribute('height', NH - 2);
+    badge.setAttribute('rx', NR - 1);
+    badge.setAttribute('fill', s.stroke); badge.setAttribute('fill-opacity','0.15');
+    g.appendChild(badge);
+
+    const ico = document.createElementNS('http://www.w3.org/2000/svg','text');
+    ico.setAttribute('x', n.cx - NW/2 + 12); ico.setAttribute('y', n.cy + 4.5);
+    ico.setAttribute('fill', s.stroke); ico.setAttribute('font-size','11');
+    ico.setAttribute('text-anchor','middle'); ico.setAttribute('font-family','monospace');
+    ico.textContent = s.icon;
+    g.appendChild(ico);
+
+    const lbl = document.createElementNS('http://www.w3.org/2000/svg','text');
+    lbl.setAttribute('x', n.cx - NW/2 + 34); lbl.setAttribute('y', n.cy + 4.5);
+    lbl.setAttribute('fill','#ccd9f0'); lbl.setAttribute('font-size','11');
+    lbl.setAttribute('font-family','system-ui,sans-serif'); lbl.setAttribute('font-weight','500');
+    lbl.textContent = n.label;
+    g.appendChild(lbl);
+
+    svg.appendChild(g);
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  SIMULATION
+// ══════════════════════════════════════════════════════
+let running = false;
+let results = [];
+
+function getDelay(base) {
+  const spd = parseInt(document.getElementById('speed').value);
+  const mult = [3, 2, 1, 0.6, 0.3][spd - 1];
+  return base * mult;
+}
+
+function log(node, msg, cls) {
+  const el = document.getElementById('exec-log');
+  const now = new Date().toLocaleTimeString('pl-PL',{hour12:false});
+  const line = document.createElement('div');
+  line.className = 'log-line';
+  line.innerHTML = `<span class="l-ts">${now}</span><span class="l-node">${node}</span><span class="l-msg ${cls||''}">${msg}</span>`;
+  el.appendChild(line);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setNodeState(id, state, severity) {
+  const g = document.getElementById('node-'+id);
+  if (!g) return;
+  const rect = g.querySelector('.node-rect');
+  // Reset opacity
+  g.querySelectorAll('rect').forEach(r => r.setAttribute('opacity','1'));
+  rect.setAttribute('opacity','1');
+  if (state === 'idle') {
+    rect.setAttribute('fill', TYPE_STYLE[nodeById(id).type].fill);
+    rect.setAttribute('stroke', TYPE_STYLE[nodeById(id).type].stroke);
+    g.querySelectorAll('rect').forEach(r => r.setAttribute('opacity','0.55'));
+    return;
+  }
+  if (state === 'active') {
+    rect.setAttribute('fill','#0d2550');
+    rect.setAttribute('stroke','#4d8bff');
+    rect.setAttribute('stroke-width','2');
+  } else if (state === 'done') {
+    const fills = {ok:'#051507', warn:'#150b00', crit:'#150306', skip:'#0d1628'};
+    const strokes = {ok:'#22c55e', warn:'#f59e0b', crit:'#f43f5e', skip:'#2d4260'};
+    rect.setAttribute('fill', fills[severity||'ok']);
+    rect.setAttribute('stroke', strokes[severity||'ok']);
+    rect.setAttribute('stroke-width','1.5');
+  }
+}
+
+function setEdgeState(fid, tid, state) {
+  const g = document.getElementById('edge-'+fid+'-'+tid);
+  if (!g) return;
+  const path = g.querySelector('.edge-line');
+  const colors = {idle:'#2d4260', active:'#4d8bff', done:'#22c55e', skip:'#1e2a40'};
+  const markers = {idle:'arr-default', active:'arr-active', done:'arr-done', skip:'arr-skip'};
+  path.setAttribute('stroke', colors[state]||colors.idle);
+  path.setAttribute('marker-end', `url(#${markers[state]||markers.idle})`);
+  if (state === 'active') {
+    path.setAttribute('stroke-dasharray','5 3');
+    path.style.animation = 'dash .6s linear infinite';
+  } else {
+    path.setAttribute('stroke-dasharray','none');
+    path.style.animation = '';
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+async function activateNode(id, ms) {
+  setNodeState(id, 'active');
+  await sleep(ms);
+}
+
+async function doneNode(id, sev) {
+  setNodeState(id, 'done', sev || 'ok');
+}
+
+async function activateEdge(fid, tid) {
+  setEdgeState(fid, tid, 'active');
+  await sleep(getDelay(300));
+  setEdgeState(fid, tid, 'done');
+}
+
+function reconcile() {
+  return TRANSACTIONS.map(t => {
+    const row = { ...t, refs:{}, maxDevPct:0, worstPlatform:null, severity:'OK' };
+    for (const plat of CONFIG.platforms) {
+      const ref = REF_RATES.find(r => r.pair === t.pair && r.platform === plat);
+      if (!ref) continue;
+      const dev = ((t.rate - ref.rate) / ref.rate) * 100;
+      row.refs[plat] = { rate: ref.rate, devPct: Math.round(dev * 1e4) / 1e4 };
+      if (Math.abs(dev) > Math.abs(row.maxDevPct)) {
+        row.maxDevPct = Math.round(dev * 1e4) / 1e4;
+        row.worstPlatform = plat;
+      }
+    }
+    const ad = Math.abs(row.maxDevPct);
+    row.severity = ad > CONFIG.tolerancePct * CONFIG.criticalMultiplier ? 'CRITICAL'
+                 : ad > CONFIG.tolerancePct ? 'WARNING' : 'OK';
+    return row;
+  });
+}
+
+async function startSim() {
+  if (running) return;
+  running = true;
+  document.getElementById('btn-run').disabled = true;
+  document.getElementById('status-chip').textContent = 'RUNNING';
+  document.getElementById('status-chip').className = 'chip chip-amber';
+  document.getElementById('exec-log').innerHTML = '';
+  document.getElementById('results').classList.remove('show');
+
+  const D = (ms) => getDelay(ms);
+
+  // Step 1 — Schedule
+  document.getElementById('progress-info').textContent = '1/9 — Schedule Trigger';
+  await activateNode('schedule', D(600));
+  log('Schedule Trigger','fired · 06:00 UTC, cron: 0 6 * * *');
+  doneNode('schedule','ok');
+  await activateEdge('schedule','config');
+
+  // Step 2 — Config
+  document.getElementById('progress-info').textContent = '2/9 — Set Config';
+  await activateNode('config', D(700));
+  log('Set Config','tolerancePct=0.5, criticalMultiplier=4, currencies: EUR USD GBP CHF');
+  doneNode('config','ok');
+
+  // Step 3 — Parallel: TX Data + Platforms
+  document.getElementById('progress-info').textContent = '3/9 — Symulacja danych + lista platform';
+  await activateEdge('config','txdata');
+  await activateEdge('config','plat');
+  setNodeState('txdata','active');
+  setNodeState('plat','active');
+  await sleep(D(800));
+  log('Simulate TX Data', `załadowano ${TRANSACTIONS.length} transakcji (4 maszyny)`, 'l-ok');
+  log('Platforms List','NBP, ECB');
+  doneNode('txdata','ok'); doneNode('plat','ok');
+
+  // Step 4 — Fetch Rates
+  document.getElementById('progress-info').textContent = '4/9 — Pobieranie kursów';
+  await activateEdge('plat','fetch');
+  await activateNode('fetch', D(1000));
+  log('Fetch Rates','GET api.nbp.pl → 200 OK · GET api.frankfurter.app → 200 OK');
+  doneNode('fetch','ok');
+  await activateEdge('fetch','norm');
+
+  // Step 5 — Normalize
+  document.getElementById('progress-info').textContent = '5/9 — Normalizacja kursów';
+  await activateNode('norm', D(600));
+  log('Normalize Rates',`${REF_RATES.length} kursów referencyjnych · NBP: 4 pary, ECB: 4 pary`);
+  doneNode('norm','ok');
+
+  // Step 6 — Merge
+  document.getElementById('progress-info').textContent = '6/9 — Synchronizacja danych';
+  await activateEdge('txdata','merge');
+  await activateEdge('norm','merge');
+  await activateNode('merge', D(500));
+  log('Sync (Merge)',`dane TX + kursy referencyjne scalone`);
+  doneNode('merge','ok');
+  await activateEdge('merge','reconcile');
+
+  // Step 7 — Reconcile (core logic)
+  document.getElementById('progress-info').textContent = '7/9 — Uzgodnienie';
+  await activateNode('reconcile', D(1100));
+  results = reconcile();
+  const crit = results.filter(r => r.severity==='CRITICAL');
+  const warn = results.filter(r => r.severity==='WARNING');
+  const ok   = results.filter(r => r.severity==='OK');
+  log('Reconcile', `${results.length} transakcji · OK: ${ok.length} · WARNING: ${warn.length} · CRITICAL: ${crit.length}`,
+      crit.length > 0 ? 'l-crit' : warn.length > 0 ? 'l-warn' : 'l-ok');
+  doneNode('reconcile', crit.length > 0 ? 'crit' : warn.length > 0 ? 'warn' : 'ok');
+
+  // Step 8 — Report + Filter parallel
+  document.getElementById('progress-info').textContent = '8/9 — Raport + alerty';
+  await activateEdge('reconcile','report');
+  await activateEdge('reconcile','filter');
+  setNodeState('report','active'); setNodeState('filter','active');
+  await sleep(D(700));
+  log('Build HTML Report',`wielostronicowy HTML · total:${results.length} warn:${warn.length} crit:${crit.length}`);
+  log('Filter CRITICAL',`${crit.length} transakcji przeszło filtr`);
+  doneNode('report','ok');
+  doneNode('filter', crit.length > 0 ? 'crit' : 'ok');
+
+  // Report chain
+  await activateEdge('report','binary');
+  await activateNode('binary', D(400));
+  log('HTML → Binary','index.html przygotowany jako binary');
+  doneNode('binary','ok');
+
+  await activateEdge('binary','pdf');
+  await activateNode('pdf', D(900));
+  log('HTML → PDF','POST gotenberg:3000 · report-2026-06-25.pdf wygenerowany');
+  doneNode('pdf','ok');
+
+  await activateEdge('pdf','blob');
+  await activateNode('blob', D(600));
+  log('Upload to Blob','PUT Azure Blob · report-2026-06-25.pdf → OK');
+  doneNode('blob','ok');
+
+  await activateEdge('blob','email');
+  await activateNode('email', D(500));
+  log('Email Report',`wysłano do risk-team@example.com · CRITICAL: ${crit.length}`, 'l-ok');
+  doneNode('email','ok');
+
+  // Teams alerts
+  if (crit.length > 0) {
+    await activateEdge('filter','teams');
+    await activateNode('teams', D(400));
+    log('Alert Teams',`🚨 ${crit.length} alertów CRITICAL wysłanych do Teams`, 'l-crit');
+    doneNode('teams','crit');
+  } else {
+    setNodeState('teams','done','skip');
+    setEdgeState('filter','teams','skip');
+    log('Alert Teams','brak transakcji CRITICAL, alerty pominięte', '');
+  }
+
+  // Error trigger — idle (no error)
+  setNodeState('errtrig','done','skip');
+  setNodeState('notify','done','skip');
+  setEdgeState('errtrig','notify','skip');
+  log('Error Trigger','brak błędów w workflow', '');
+
+  // Done
+  document.getElementById('progress-info').textContent = `✓ Zakończono — ${results.length} transakcji`;
+  document.getElementById('status-chip').textContent = crit.length ? 'CRITICAL' : warn.length ? 'WARNING' : 'OK';
+  document.getElementById('status-chip').className = 'chip ' + (crit.length ? 'chip-amber' : 'chip-ok');
+
+  renderResults(results, ok.length, warn.length, crit.length);
+
+  running = false;
+  document.getElementById('btn-reset').disabled = false;
+
+  await sleep(200);
+  document.getElementById('results').scrollIntoView({ behavior:'smooth', block:'start' });
+}
+
+function resetSim() {
+  NODES.forEach(n => setNodeState(n.id, 'idle'));
+  EDGES.forEach(([f,t]) => setEdgeState(f, t, 'idle'));
+  document.getElementById('exec-log').innerHTML = '';
+  document.getElementById('results').classList.remove('show');
+  document.getElementById('progress-info').textContent = '—';
+  document.getElementById('status-chip').textContent = 'GOTOWY';
+  document.getElementById('status-chip').className = 'chip chip-blue';
+  document.getElementById('btn-run').disabled = false;
+  document.getElementById('btn-reset').disabled = true;
+}
+
+function fmtDev(v) {
+  const s = (v > 0 ? '+' : '') + v.toFixed(4) + '%';
+  return s;
+}
+
+function devColor(v, sev) {
+  if (sev === 'CRITICAL') return 'col-crit';
+  if (sev === 'WARNING')  return 'col-warn';
+  return 'col-ok';
+}
+
+function renderResults(rows, nOk, nWarn, nCrit) {
+  document.getElementById('kpi-total').textContent = rows.length;
+  document.getElementById('kpi-ok').textContent    = nOk;
+  document.getElementById('kpi-warn').textContent  = nWarn;
+  document.getElementById('kpi-crit').textContent  = nCrit;
+  document.getElementById('tbl-count').textContent = rows.length + ' rekordów';
+  document.getElementById('result-date').textContent = '2026-06-25 · kursy: NBP + ECB';
+
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = '';
+
+  rows.forEach(r => {
+    const nbp = r.refs['NBP'];
+    const ecb = r.refs['ECB'];
+    const sev = r.severity;
+    const sevClass = sev.toLowerCase();
+    const dc = devColor(r.maxDevPct, sev);
+    const ad = Math.abs(r.maxDevPct);
+    const barW = Math.min(100, (ad / 5) * 100);
+    const barColor = sev === 'CRITICAL' ? '#f43f5e' : sev === 'WARNING' ? '#f59e0b' : '#22c55e';
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="cell-mono">${r.txId}</td>
+      <td class="cell-mono cell-muted">${r.machine}</td>
+      <td class="cell-mono">${r.pair}</td>
+      <td class="cell-muted">${r.counterparty}</td>
+      <td class="cell-num">${r.rate.toFixed(4)}</td>
+      <td class="cell-num cell-muted">${nbp ? nbp.rate.toFixed(4) : '—'}</td>
+      <td class="cell-num cell-muted">${ecb ? ecb.rate.toFixed(4) : '—'}</td>
+      <td>
+        <div class="dev-wrap">
+          <div class="dev-bar"><div class="dev-fill" style="width:${barW}%;background:${barColor}"></div></div>
+          <span class="${dc}" style="font-family:var(--mono);font-size:11px;">${fmtDev(r.maxDevPct)}</span>
+        </div>
+      </td>
+      <td class="cell-mono cell-muted">${r.worstPlatform || '—'}</td>
+      <td><span class="pill pill-${sevClass}">${sev}</span></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('results').classList.add('show');
+}
+
+// Speed label
+document.getElementById('speed').addEventListener('input', function() {
+  const labels = ['×0.3','×0.5','×1','×1.7','×3.3'];
+  document.getElementById('speed-label').textContent = labels[this.value - 1];
+});
+
+// Init
+buildSVG();
+</script>
